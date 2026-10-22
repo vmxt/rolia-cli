@@ -214,4 +214,5 @@ viewer closes the PDF.
 ## Responsible use
 
 Use the tool only for content you are authorized to access. Follow the
-source site's terms and applicable copyright laws.
+source site's terms and applicable copyright laws. See
+[DISCLAIMER.md](./DISCLAIMER.md) for the full disclaimer.
