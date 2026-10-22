@@ -122,10 +122,17 @@ You can also use the explicit `search` command:
 man-cli search "futari bus"
 ```
 
+An unambiguous exact title match is selected automatically, ignoring letter
+case. For example, `Blue Lock` and `blue lock` go straight to that series'
+chapter list. A partial query such as `Blue` shows the matching titles so you
+can select the right series.
+
 Select a series and a chapter with `fzf`. The chapter's page images are
 extracted and assembled into a temporary PDF, which opens in your PDF viewer.
 The chapter menu remains available in the terminal while the PDF is open.
-Temporary files are removed after the viewer closes.
+The terminal is cleared when a chapter opens or you navigate to another
+chapter, so previous search and chapter output does not accumulate. Temporary
+files are removed after the viewer closes.
 
 The reader menu provides:
 
