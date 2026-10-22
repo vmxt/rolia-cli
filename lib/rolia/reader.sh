@@ -5,7 +5,7 @@ select_chapter() {
     manga_title=$3
     case $manga_numeric_id in
         ''|*[!0-9]*)
-            printf '%s\n' "The search result did not include a valid numeric manga ID." >&2
+            message_error "The search result did not include a valid numeric manga ID."
             return 1
             ;;
     esac
@@ -16,7 +16,7 @@ select_chapter() {
         timestamp=$(date +%s)
         utc_hour=$(date -u +%Y%m%d%H)
         token=$(printf '%s' "${timestamp}mng_ch_${utc_hour}" | md5sum | cut -c1-16)
-        if ! chapter_json=$(curl --silent --show-error --fail --location --max-time 30 \
+        if ! chapter_json=$(curl --silent --fail --location --max-time 30 \
             --get \
             --data-urlencode "manga_id=$manga_numeric_id" \
             --data-urlencode "offset=$offset" \
@@ -25,7 +25,7 @@ select_chapter() {
             --data-urlencode "_t=$token" \
             --data-urlencode "_ts=$timestamp" \
             "${SOURCE_BASE_URL%/}/auth/manga-chapters"); then
-            printf 'Could not load chapters for %s.\n' "$manga_title" >&2
+            message_error "Could not load chapters for $manga_title."
             return 1
         fi
         if ! printf '%s' "$chapter_json" | jq -e \
@@ -33,7 +33,7 @@ select_chapter() {
             error_message=$(printf '%s' "$chapter_json" |
                 jq -r '.message // .error // "The chapter endpoint returned an unsuccessful response."' 2>/dev/null) ||
                 error_message="The chapter endpoint returned an unsuccessful response."
-            printf 'Could not load chapters: %s\n' "$error_message" >&2
+            message_error "Could not load chapters: $error_message"
             return 1
         fi
 
@@ -63,7 +63,7 @@ select_chapter() {
     done
 
     if [ -z "$chapter_rows" ]; then
-        printf 'No chapters found for %s.\n' "$manga_title"
+        message_warning "No chapters found for $manga_title."
         return 0
     fi
 
@@ -97,7 +97,7 @@ chapter_reader_url() {
             if [ -n "$manga_slug" ]; then
                 printf '%s\n' "${SOURCE_BASE_URL%/}/read/$manga_slug/$chapter_id/"
             else
-                printf '%s\n' "The selected chapter has no reader URL." >&2
+                message_error "The selected chapter has no reader URL."
                 return 1
             fi
             ;;
@@ -113,7 +113,7 @@ read_chapter_loop() {
         awk -v selected="$current_chapter" '$0 == selected { print NR; exit }')
     chapter_count=$(printf '%s\n' "$chapter_rows" | awk 'END { print NR }')
     if [ -z "$current_index" ]; then
-        printf '%s\n' "The selected chapter is not in the chapter list." >&2
+        message_error "The selected chapter is not in the chapter list."
         return 1
     fi
 
@@ -131,14 +131,14 @@ read_chapter_loop() {
         case $reader_action in
             Next)
                 if [ "$current_index" -le 1 ]; then
-                    printf '%s\n' "This is the oldest chapter in the list."
+                    message_warning "This is the oldest chapter in the list."
                     continue
                 fi
                 current_index=$((current_index - 1))
                 ;;
             Previous)
                 if [ "$current_index" -ge "$chapter_count" ]; then
-                    printf '%s\n' "This is the newest chapter in the list."
+                    message_warning "This is the newest chapter in the list."
                     continue
                 fi
                 current_index=$((current_index + 1))
@@ -179,5 +179,5 @@ show_chapter_screen() {
     manga_title=$1
     chapter_number=$2
     printf '\033[1;36m%s\033[0m\n' "$manga_title"
-    printf '\033[1mChapter #%s\033[0m\n\n' "$chapter_number"
+    printf '\033[1;35mChapter #%s\033[0m\n\n' "$chapter_number"
 }

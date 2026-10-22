@@ -9,24 +9,24 @@ search_online() {
         if [ "${#search_term}" -ge 2 ]; then
             break
         fi
-        printf '%s\n' "Search query must be at least 2 characters." >&2
+        message_error "Search query must be at least 2 characters."
         search_term=
     done
     case $SOURCE_BASE_URL in
         http://*|https://*) ;;
         *)
-            printf '%s\n' "ROLIA_CLI_SOURCE_BASE_URL must start with http:// or https://." >&2
+            message_error "ROLIA_CLI_SOURCE_BASE_URL must start with http:// or https://."
             return 1
             ;;
     esac
 
     request_body=$(jq -cn --arg query "$search_term" --argjson limit 50 \
         '{query: $query, limit: $limit}') || return 1
-    printf '%s\n' "Searching manga..."
-    if ! search_json=$(curl --silent --show-error --fail --location --max-time 30 \
+    message_info "Searching manga..."
+    if ! search_json=$(curl --silent --fail --location --max-time 30 \
         -H 'Content-Type: application/json' --data-binary "$request_body" \
         "${SOURCE_BASE_URL%/}/auth/search"); then
-        printf 'Could not search %s.\n' "$SOURCE_BASE_URL" >&2
+        message_error "Could not search $SOURCE_BASE_URL."
         return 1
     fi
     if ! printf '%s' "$search_json" | jq -e \
@@ -34,7 +34,7 @@ search_online() {
         error_message=$(printf '%s' "$search_json" |
             jq -r '.message // .error // "The source returned an unsuccessful response."' 2>/dev/null) ||
             error_message="The source returned an unsuccessful response."
-        printf 'Search failed: %s\n' "$error_message" >&2
+        message_error "Search failed: $error_message"
         return 1
     fi
 
@@ -45,7 +45,7 @@ search_online() {
            (.slug // "")]
           | @tsv] | .[]')
     if [ -z "$manga_rows" ]; then
-        printf 'No manga found for "%s".\n' "$search_term"
+        message_warning "No manga found for \"$search_term\"."
         return 0
     fi
 
@@ -66,7 +66,7 @@ search_online() {
     manga_title=$(printf '%s\n' "$selected_manga" | cut -f2)
     manga_slug=$(printf '%s\n' "$selected_manga" | cut -f3)
     if [ -z "$manga_id" ]; then
-        printf '%s\n' "The selected result has no manga ID." >&2
+        message_error "The selected result has no manga ID."
         return 1
     fi
 

@@ -27,8 +27,47 @@ clear_terminal() {
     fi
 }
 
+message_info() {
+    message_color='\033[1;36m'
+    message_stream=1
+    message_print "$@"
+}
+
+message_success() {
+    message_color='\033[1;32m'
+    message_stream=1
+    message_print "$@"
+}
+
+message_warning() {
+    message_color='\033[1;33m'
+    message_stream=1
+    message_print "$@"
+}
+
+message_error() {
+    message_color='\033[1;31m'
+    message_stream=2
+    message_print "$@"
+}
+
+message_print() {
+    message_text=$1
+    if [ "$message_stream" -eq 2 ]; then
+        if [ -t 2 ] && [ "${TERM:-dumb}" != dumb ]; then
+            printf '%b%s\033[0m\n' "$message_color" "$message_text" >&2
+        else
+            printf '%s\n' "$message_text" >&2
+        fi
+    elif [ -t 1 ] && [ "${TERM:-dumb}" != dumb ]; then
+        printf '%b%s\033[0m\n' "$message_color" "$message_text"
+    else
+        printf '%s\n' "$message_text"
+    fi
+}
+
 check_dependencies() {
-    printf '%s\n' "Checking dependencies..."
+    message_info "Checking dependencies..."
     missing_dependencies=
     missing_packages=
     for dependency in curl fzf jq md5sum ffmpeg img2pdf lsof; do
@@ -47,13 +86,10 @@ check_dependencies() {
     fi
 
     if [ -n "$missing_dependencies" ]; then
-        printf '\033[1;31m' >&2
-        printf 'Missing dependencies: %s\n' "$missing_dependencies" >&2
-        printf '%s\n' \
-            "Install the following dependencies before running rolia-cli:" \
-            "  sudo apt update && sudo apt install $missing_packages" \
-            "Then run rolia-cli again." >&2
-        printf '\033[0m' >&2
+        message_error "Missing dependencies: $missing_dependencies"
+        message_error "Install the following dependencies before running rolia-cli:"
+        message_error "  sudo apt update && sudo apt install $missing_packages"
+        message_error "Then run rolia-cli again."
         return 1
     fi
 }
@@ -61,9 +97,11 @@ check_dependencies() {
 initialize() {
     check_dependencies
     mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$APP_DATA/cache"
-    printf '\n%s\n' "Initialized rolia-cli folders:"
-    printf '  Library:   %s\n' "$DEFAULT_LIBRARY"
-    printf '  Downloads: %s\n' "$APP_DATA/downloads"
-    printf '  Config:    %s\n' "$APP_CONFIG"
-    printf '\n%s\n' "Search for a title, select a chapter, and read or download it as a PDF."
+    printf '\n'
+    message_success "Initialized rolia-cli folders:"
+    message_info "  Library:   $DEFAULT_LIBRARY"
+    message_info "  Downloads: $APP_DATA/downloads"
+    message_info "  Config:    $APP_CONFIG"
+    printf '\n'
+    message_info "Search for a title, select a chapter, and read or download it as a PDF."
 }

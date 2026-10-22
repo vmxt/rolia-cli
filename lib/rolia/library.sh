@@ -13,12 +13,12 @@ is_image() {
 list_series() {
     library=$1
     if [ ! -d "$library" ]; then
-        printf 'Library folder does not exist: %s\n' "$library" >&2
+        message_error "Library folder does not exist: $library"
         return 1
     fi
 
     found=false
-    printf 'Series in %s:\n' "$library"
+    message_success "Series in $library:"
     for path in "$library"/*; do
         if [ -d "$path" ]; then
             printf '  %s\n' "${path##*/}"
@@ -27,19 +27,19 @@ list_series() {
     done
 
     if [ "$found" = false ]; then
-        printf '  (no series folders found)\n'
+        message_warning "  (no series folders found)"
     fi
 }
 
 list_pages() {
     chapter=$1
     if [ ! -d "$chapter" ]; then
-        printf 'Chapter folder does not exist: %s\n' "$chapter" >&2
+        message_error "Chapter folder does not exist: $chapter"
         return 1
     fi
 
     found=false
-    printf 'Image pages in %s:\n' "$chapter"
+    message_success "Image pages in $chapter:"
     for path in "$chapter"/*; do
         if [ -f "$path" ] && is_image "$path"; then
             printf '  %s\n' "${path##*/}"
@@ -48,6 +48,6 @@ list_pages() {
     done
 
     if [ "$found" = false ]; then
-        printf '  (no supported image pages found)\n'
+        message_warning "  (no supported image pages found)"
     fi
 }

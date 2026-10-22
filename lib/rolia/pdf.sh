@@ -31,12 +31,12 @@ export_chapter_pdf() (
         download) progress_action=Downloading ;;
         read) progress_action=Loading ;;
         *)
-            printf 'Unknown chapter PDF action: %s\n' "$pdf_action" >&2
+            message_error "Unknown chapter PDF action: $pdf_action"
             return 1
             ;;
     esac
     if ! is_allowed_source_url "$reader_url"; then
-        printf 'Refusing to fetch a chapter page outside the source domains: %s\n' "$reader_url" >&2
+        message_error "Refusing to fetch a chapter page outside the source domains: $reader_url"
         return 1
     fi
     case $chapter_id in
@@ -45,14 +45,14 @@ export_chapter_pdf() (
     esac
     case $post_id in
         ''|*[!0-9]*)
-            printf 'The selected chapter has an invalid image-content ID: %s\n' "$chapter_id" >&2
+            message_error "The selected chapter has an invalid image-content ID: $chapter_id"
             return 1
             ;;
     esac
-    if ! chapter_content=$(curl --silent --show-error --fail --location --max-time 30 \
+    if ! chapter_content=$(curl --silent --fail --location --max-time 30 \
         --get --data-urlencode "chapter_id=$post_id" \
         "${SOURCE_BASE_URL%/}/auth/chapter-content"); then
-        printf 'Could not load page images for chapter %s.\n' "$chapter_number" >&2
+        message_error "Could not load page images for chapter $chapter_number."
         return 1
     fi
     if ! printf '%s' "$chapter_content" | jq -e \
@@ -60,17 +60,17 @@ export_chapter_pdf() (
         error_message=$(printf '%s' "$chapter_content" |
             jq -r '.message // .error // "The chapter has no page images."' 2>/dev/null) ||
             error_message="The chapter has no page images."
-        printf 'Could not load page images: %s\n' "$error_message" >&2
+        message_error "Could not load page images: $error_message"
         return 1
     fi
     image_urls=$(printf '%s' "$chapter_content" | jq -r '.images[] | select(type == "string")')
     if [ -z "$image_urls" ]; then
-        printf 'No image URLs were returned for chapter %s.\n' "$chapter_number" >&2
+        message_error "No image URLs were returned for chapter $chapter_number."
         return 1
     fi
 
     temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/rolia-cli.XXXXXX") || {
-        printf '%s\n' "Could not create a temporary folder for chapter pages." >&2
+        message_error "Could not create a temporary folder for chapter pages."
         return 1
     }
     trap cleanup_temp_dir 0
@@ -80,21 +80,21 @@ export_chapter_pdf() (
     print_page_progress "$page_number" "$total_pages" "$progress_action"
     while IFS= read -r image_url; do
         if ! is_allowed_image_url "$image_url"; then
-            printf 'Refusing to fetch a page image outside the approved source and image CDN domains: %s\n' "$image_url" >&2
+            message_error "Refusing to fetch a page image outside the approved source and image CDN domains: $image_url"
             return 1
         fi
         page_number=$((page_number + 1))
         image_file=$(printf '%s/page-%04d' "$temp_dir" "$page_number")
-        if ! curl --silent --show-error --fail --location --max-time 60 \
+        if ! curl --silent --fail --location --max-time 60 \
             --referer "$reader_url" --output "$image_file" "$image_url"; then
             printf '\n' >&2
-            printf 'Failed to download page %s.\n' "$page_number" >&2
+            message_error "Failed to download page $page_number."
             return 1
         fi
         converted_file=$(printf '%s/converted-%04d.png' "$temp_dir" "$page_number")
         if ! ffmpeg -nostdin -loglevel error -y -i "$image_file" -frames:v 1 "$converted_file"; then
             printf '\n' >&2
-            printf 'Could not convert page %s to PDF-compatible PNG.\n' "$page_number" >&2
+            message_error "Could not convert page $page_number to PDF-compatible PNG."
             return 1
         fi
         print_page_progress "$page_number" "$total_pages" "$progress_action"
@@ -121,11 +121,12 @@ EOF
     fi
     if ! img2pdf "$temp_dir"/converted-*.png --output "$pdf_path"; then
         rm -f -- "$pdf_path"
-        printf '%s\n' "PDF generation failed; temporary page files will be cleaned up." >&2
+        message_error "PDF generation failed; temporary page files will be cleaned up."
         return 1
     fi
     if [ "$pdf_action" = download ]; then
-        printf '\nPDF saved to: %s\n' "$pdf_path"
+        printf '\n'
+        message_success "PDF saved to: $pdf_path"
         cleanup_temp_dir
     else
         open_pdf_in_background "$pdf_path" "$temp_dir"
@@ -144,6 +145,14 @@ print_page_progress() {
     progress_action=$3
     progress_width=20
     filled_width=$((completed_pages * progress_width / total_pages))
+    progress_percent=$((completed_pages * 100 / total_pages))
+    if [ "$progress_percent" -ge 100 ]; then
+        progress_color='\033[31m'
+    elif [ "$progress_percent" -ge 50 ]; then
+        progress_color='\033[33m'
+    else
+        progress_color='\033[32m'
+    fi
     progress_bar=
     bar_index=0
     while [ "$bar_index" -lt "$progress_width" ]; do
@@ -154,20 +163,25 @@ print_page_progress() {
         fi
         bar_index=$((bar_index + 1))
     done
-    printf '\r%s pages [%s] %s/%s' \
-        "$progress_action" "$progress_bar" "$completed_pages" "$total_pages"
+    if [ -t 1 ] && [ "${TERM:-dumb}" != dumb ]; then
+        printf '\r\033[1;36m%s pages \033[0m[%b%s\033[0m] %s/%s' \
+            "$progress_action" "$progress_color" "$progress_bar" "$completed_pages" "$total_pages"
+    else
+        printf '\r%s pages [%s] %s/%s' \
+            "$progress_action" "$progress_bar" "$completed_pages" "$total_pages"
+    fi
 }
 
 open_pdf_in_background() {
     pdf_path=$1
     temp_dir=$2
     if ! command -v lsof >/dev/null 2>&1; then
-        printf '%s\n' "Automatic PDF cleanup needs lsof; install it before reading chapters." >&2
+        message_error "Automatic PDF cleanup needs lsof; install it before reading chapters."
         return 1
     fi
     if [ -n "$PDF_VIEWER" ]; then
         if ! command -v "$PDF_VIEWER" >/dev/null 2>&1; then
-            printf 'Configured PDF viewer not found: %s\n' "$PDF_VIEWER" >&2
+            message_error "Configured PDF viewer not found: $PDF_VIEWER"
             return 1
         fi
         "$PDF_VIEWER" "$pdf_path" >/dev/null 2>&1 &
@@ -184,7 +198,7 @@ open_pdf_in_background() {
     elif command -v gio >/dev/null 2>&1; then
         gio open "$pdf_path" >/dev/null 2>&1 &
     else
-        printf '%s\n' "No PDF opener found. Install a PDF viewer or set ROLIA_CLI_PDF_VIEWER." >&2
+        message_error "No PDF opener found. Install a PDF viewer or set ROLIA_CLI_PDF_VIEWER."
         return 1
     fi
 
