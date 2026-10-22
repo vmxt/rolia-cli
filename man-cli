@@ -307,6 +307,17 @@ is_allowed_source_url() {
     esac
 }
 
+is_allowed_image_url() {
+    case $1 in
+        https://mangataro.yachts/*)
+            return 0
+            ;;
+        *)
+            is_allowed_source_url "$1"
+            ;;
+    esac
+}
+
 export_chapter_pdf() (
     reader_url=$1
     manga_title=$2
@@ -357,8 +368,8 @@ export_chapter_pdf() (
     page_number=0
     print_page_progress "$page_number" "$total_pages"
     while IFS= read -r image_url; do
-        if ! is_allowed_source_url "$image_url"; then
-            printf 'Refusing to fetch a page image outside the source domains: %s\n' "$image_url" >&2
+        if ! is_allowed_image_url "$image_url"; then
+            printf 'Refusing to fetch a page image outside the approved source and image CDN domains: %s\n' "$image_url" >&2
             return 1
         fi
         page_number=$((page_number + 1))
