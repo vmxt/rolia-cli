@@ -28,18 +28,16 @@ The script requires:
 - `img2pdf`
 - `lsof` (used to detect when a PDF viewer closes, so temporary files can be
   removed automatically)
-- A PDF viewer and a desktop opener such as `xdg-open` or `gio`
+- A PDF viewer and a desktop opener such as `xdg-open`, `gio`, or macOS
+  `open`
 
 At startup, `rolia-cli` checks that its required command-line tools are
-installed. If any are missing, it stops and prints the missing dependencies
-and an Ubuntu/Debian installation command in red. That command includes only
-the packages needed for the missing tools.
+installed. If any are missing, it stops and lists them. On Ubuntu and Debian
+it also prints an installation command containing only the missing packages.
 
-The installation steps below target Ubuntu and Debian. Other Linux
-distributions need equivalent packages. The script is not a native
-PowerShell command; on Windows, run it in WSL with the Linux dependencies
-installed. macOS users need a POSIX shell and equivalent tools; GNU
-`coreutils` may be needed for `md5sum`.
+For platform-specific instructions, including Windows/WSL, macOS, and other
+Linux distributions, see [INSTALLATION.md](./INSTALLATION.md). Native
+PowerShell and iOS installations are not supported.
 
 ## Install on Ubuntu or Debian
 

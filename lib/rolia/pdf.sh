@@ -193,6 +193,8 @@ open_pdf_in_background() {
         evince --wait "$pdf_path" >/dev/null 2>&1 &
     elif command -v atril >/dev/null 2>&1; then
         atril --wait "$pdf_path" >/dev/null 2>&1 &
+    elif command -v open >/dev/null 2>&1; then
+        open "$pdf_path" >/dev/null 2>&1 &
     elif command -v xdg-open >/dev/null 2>&1; then
         xdg-open "$pdf_path" >/dev/null 2>&1 &
     elif command -v gio >/dev/null 2>&1; then

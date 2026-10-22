@@ -80,16 +80,21 @@ check_dependencies() {
         missing_packages="${missing_packages}${missing_packages:+ }$package"
     done
     if ! command -v xdg-open >/dev/null 2>&1 &&
-        ! command -v gio >/dev/null 2>&1; then
-        missing_dependencies="${missing_dependencies}${missing_dependencies:+, }xdg-open or gio"
+        ! command -v gio >/dev/null 2>&1 &&
+        ! command -v open >/dev/null 2>&1; then
+        missing_dependencies="${missing_dependencies}${missing_dependencies:+, }xdg-open, gio, or open"
         missing_packages="${missing_packages}${missing_packages:+ }xdg-utils"
     fi
 
     if [ -n "$missing_dependencies" ]; then
         message_error "Missing dependencies: $missing_dependencies"
-        message_error "Install the following dependencies before running rolia-cli:"
-        message_error "  sudo apt update && sudo apt install $missing_packages"
-        message_error "Then run rolia-cli again."
+        if command -v apt-get >/dev/null 2>&1; then
+            message_error "Install the following dependencies before running rolia-cli:"
+            message_error "  sudo apt update && sudo apt install $missing_packages"
+        else
+            message_error "Install the missing commands with your system package manager."
+        fi
+        message_error "Then run rolia-cli init again."
         return 1
     fi
 }
