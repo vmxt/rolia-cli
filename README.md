@@ -1,9 +1,8 @@
-# man-cli
+# rolia-cli
 
-`man-cli` is a POSIX shell command-line manga reader. Search for a series,
-select a chapter, and read it as a temporary PDF or save a permanent PDF.
-It requests the series and chapter data directly from RoliaScan; no separate
-Ruby API server is required.
+`rolia-cli` is a POSIX shell command-line manga reader. Search for a series,
+select a chapter, and read it as a temporary PDF reader or save a permanent PDF.
+It requests the series and chapter data directly from RoliaScan.
 
 ## Features
 
@@ -31,7 +30,7 @@ The script requires:
   removed automatically)
 - A PDF viewer and a desktop opener such as `xdg-open` or `gio`
 
-At startup, `man-cli` checks that its required command-line tools are
+At startup, `rolia-cli` checks that its required command-line tools are
 installed. If any are missing, it stops and prints the missing dependencies
 and an Ubuntu/Debian installation command in red. That command includes only
 the packages needed for the missing tools.
@@ -55,7 +54,8 @@ Install the command from this checkout into `~/.local/bin`:
 
 ```sh
 mkdir -p "$HOME/.local/bin"
-install -m 755 ./man-cli "$HOME/.local/bin/man-cli"
+install -m 755 ./rolia-cli "$HOME/.local/bin/rolia-cli"
+rm -f "$HOME/.local/bin/man-cli"
 ```
 
 Make sure `~/.local/bin` is on your `PATH`. For Bash, add this line to
@@ -69,13 +69,13 @@ Reload the shell configuration or open a new terminal, then initialize the
 application directories and check dependencies:
 
 ```sh
-man-cli init
+rolia-cli init
 ```
 
 You can also run the script directly from the checkout:
 
 ```sh
-./man-cli init
+./rolia-cli init
 ```
 
 ## Uninstall
@@ -83,10 +83,10 @@ You can also run the script directly from the checkout:
 Remove the installed command:
 
 ```sh
-rm "$HOME/.local/bin/man-cli"
+rm "$HOME/.local/bin/rolia-cli"
 ```
 
-If you added the `PATH` line to `~/.bashrc` only for `man-cli`, remove that
+If you added the `PATH` line to `~/.bashrc` only for `rolia-cli`, remove that
 line too, then open a new terminal.
 
 Uninstalling the command does not remove your downloaded PDFs or application
@@ -94,8 +94,8 @@ data. To remove those as well, first copy any files you want to keep, then
 run:
 
 ```sh
-rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/man-cli"
-rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/man-cli"
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/rolia-cli"
+rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/rolia-cli"
 ```
 
 The first command removes downloads, the library, and cache data. The second
@@ -107,19 +107,19 @@ with `apt` are shared system packages and are intentionally left installed.
 Start an interactive search:
 
 ```sh
-man-cli
+rolia-cli
 ```
 
 Search using a query:
 
 ```sh
-man-cli "wind breaker"
+rolia-cli "wind breaker"
 ```
 
 You can also use the explicit `search` command:
 
 ```sh
-man-cli search "futari bus"
+rolia-cli search "futari bus"
 ```
 
 An unambiguous exact title match is selected automatically, ignoring letter
@@ -144,12 +144,12 @@ The reader menu provides:
 
 ## Files and configuration
 
-By default, `man-cli` stores its files under:
+By default, `rolia-cli` stores its files under:
 
-- Downloads: `~/.local/share/man-cli/downloads/`
-- Library: `~/.local/share/man-cli/library/`
-- Configuration: `~/.config/man-cli/`
-- Cache: `~/.local/share/man-cli/cache/`
+- Downloads: `~/.local/share/rolia-cli/downloads/`
+- Library: `~/.local/share/rolia-cli/library/`
+- Configuration: `~/.config/rolia-cli/`
+- Cache: `~/.local/share/rolia-cli/cache/`
 
 It follows the XDG directory environment variables when set:
 
@@ -158,10 +158,16 @@ It follows the XDG directory environment variables when set:
 
 Optional settings:
 
-- `MAN_CLI_SOURCE_BASE_URL` changes the source base URL. It defaults to
+- `ROLIA_CLI_SOURCE_BASE_URL` changes the source base URL. It defaults to
   `https://roliascan.com`.
-- `MAN_CLI_PDF_VIEWER` sets the PDF viewer command used to open temporary
+- `ROLIA_CLI_PDF_VIEWER` sets the PDF viewer command used to open temporary
   PDFs. The command should accept the PDF path as its argument.
+
+For upgrades from `man-cli`, existing `~/.local/share/man-cli` and
+`~/.config/man-cli` directories are reused if the corresponding `rolia-cli`
+directories do not exist. Existing `MAN_CLI_SOURCE_BASE_URL` and
+`MAN_CLI_PDF_VIEWER` environment variables are also supported; the
+`ROLIA_CLI_*` names take precedence.
 
 Automatic cleanup for temporary PDFs depends on `lsof` being installed. Keep
 the PDF viewer running while reading; temporary files are removed when the
@@ -169,11 +175,11 @@ viewer closes the PDF.
 
 ## Troubleshooting
 
-- Run `man-cli init` to check whether required tools are available.
-- If `man-cli: command not found` appears, verify that `~/.local/bin` is on
+- Run `rolia-cli init` to check whether required tools are available.
+- If `rolia-cli: command not found` appears, verify that `~/.local/bin` is on
   `PATH`, then open a new terminal.
 - If a temporary PDF cannot be opened or cleaned up, install `lsof` and a
-  desktop opener such as `xdg-utils`, or set `MAN_CLI_PDF_VIEWER` to a
+  desktop opener such as `xdg-utils`, or set `ROLIA_CLI_PDF_VIEWER` to a
   suitable PDF viewer.
 - Chapter pages are served by the source site and its image CDN. If a page
   cannot be fetched, check your connection and try again.

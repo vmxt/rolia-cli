@@ -3,10 +3,13 @@ set -eu
 
 DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
-APP_DATA=$DATA_HOME/man-cli
-APP_CONFIG=$CONFIG_HOME/man-cli
+APP_DATA=$DATA_HOME/rolia-cli
+APP_CONFIG=$CONFIG_HOME/rolia-cli
+[ -d "$APP_DATA" ] || [ ! -d "$DATA_HOME/man-cli" ] || APP_DATA=$DATA_HOME/man-cli
+[ -d "$APP_CONFIG" ] || [ ! -d "$CONFIG_HOME/man-cli" ] || APP_CONFIG=$CONFIG_HOME/man-cli
 DEFAULT_LIBRARY=$APP_DATA/library
-SOURCE_BASE_URL=${MAN_CLI_SOURCE_BASE_URL:-https://roliascan.com}
+SOURCE_BASE_URL=${ROLIA_CLI_SOURCE_BASE_URL:-${MAN_CLI_SOURCE_BASE_URL:-https://roliascan.com}}
+PDF_VIEWER=${ROLIA_CLI_PDF_VIEWER:-${MAN_CLI_PDF_VIEWER:-}}
 
 usage() {
     cat <<EOF
@@ -24,7 +27,8 @@ Reading extracts the selected chapter pages into a temporary PDF and opens it.
 Reader menu: Next, Previous, Select chapter, Download chapter, Quit.
 Temporary PDFs are removed automatically after the viewer closes.
 The chapter menu stays available while the PDF is open; automatic cleanup requires lsof.
-Set MAN_CLI_PDF_VIEWER to choose a PDF viewer command.
+Set ROLIA_CLI_PDF_VIEWER to choose a PDF viewer command.
+Existing MAN_CLI_* environment variables remain supported.
 Source URL: $SOURCE_BASE_URL
 EOF
 }
@@ -52,9 +56,9 @@ check_dependencies() {
         printf '\033[1;31m' >&2
         printf 'Missing dependencies: %s\n' "$missing_dependencies" >&2
         printf '%s\n' \
-            "Install the following dependencies before running man-cli:" \
+            "Install the following dependencies before running rolia-cli:" \
             "  sudo apt update && sudo apt install $missing_packages" \
-            "Then run man-cli again." >&2
+            "Then run rolia-cli again." >&2
         printf '\033[0m' >&2
         return 1
     fi
@@ -62,8 +66,8 @@ check_dependencies() {
 
 initialize() {
     check_dependencies
-    mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$DATA_HOME/man-cli/cache"
-    printf '\n%s\n' "Initialized man-cli folders:"
+    mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$APP_DATA/cache"
+    printf '\n%s\n' "Initialized rolia-cli folders:"
     printf '  Library:   %s\n' "$DEFAULT_LIBRARY"
     printf '  Downloads: %s\n' "$APP_DATA/downloads"
     printf '  Config:    %s\n' "$APP_CONFIG"
@@ -79,7 +83,7 @@ search_online() {
     case $SOURCE_BASE_URL in
         http://*|https://*) ;;
         *)
-            printf '%s\n' "MAN_CLI_SOURCE_BASE_URL must start with http:// or https://." >&2
+            printf '%s\n' "ROLIA_CLI_SOURCE_BASE_URL must start with http:// or https://." >&2
             return 1
             ;;
     esac
@@ -380,7 +384,7 @@ export_chapter_pdf() (
         return 1
     fi
 
-    temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/man-cli.XXXXXX") || {
+    temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/rolia-cli.XXXXXX") || {
         printf '%s\n' "Could not create a temporary folder for chapter pages." >&2
         return 1
     }
@@ -475,12 +479,12 @@ open_pdf_in_background() {
         printf '%s\n' "Automatic PDF cleanup needs lsof; install it before reading chapters." >&2
         return 1
     fi
-    if [ -n "${MAN_CLI_PDF_VIEWER:-}" ]; then
-        if ! command -v "$MAN_CLI_PDF_VIEWER" >/dev/null 2>&1; then
-            printf 'Configured PDF viewer not found: %s\n' "$MAN_CLI_PDF_VIEWER" >&2
+    if [ -n "$PDF_VIEWER" ]; then
+        if ! command -v "$PDF_VIEWER" >/dev/null 2>&1; then
+            printf 'Configured PDF viewer not found: %s\n' "$PDF_VIEWER" >&2
             return 1
         fi
-        "$MAN_CLI_PDF_VIEWER" "$pdf_path" >/dev/null 2>&1 &
+        "$PDF_VIEWER" "$pdf_path" >/dev/null 2>&1 &
     elif command -v zathura >/dev/null 2>&1; then
         zathura "$pdf_path" >/dev/null 2>&1 &
     elif command -v mupdf >/dev/null 2>&1; then
@@ -494,7 +498,7 @@ open_pdf_in_background() {
     elif command -v gio >/dev/null 2>&1; then
         gio open "$pdf_path" >/dev/null 2>&1 &
     else
-        printf '%s\n' "No PDF opener found. Install a PDF viewer or set MAN_CLI_PDF_VIEWER." >&2
+        printf '%s\n' "No PDF opener found. Install a PDF viewer or set ROLIA_CLI_PDF_VIEWER." >&2
         return 1
     fi
 
@@ -570,12 +574,12 @@ list_pages() {
 case ${1-} in
     '')
         check_dependencies
-        mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$DATA_HOME/man-cli/cache"
+        mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$APP_DATA/cache"
         search_online ""
         ;;
     search)
         check_dependencies
-        mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$DATA_HOME/man-cli/cache"
+        mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$APP_DATA/cache"
         shift
         search_online "$*"
         ;;
@@ -605,7 +609,7 @@ case ${1-} in
         ;;
     *)
         check_dependencies
-        mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$DATA_HOME/man-cli/cache"
+        mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$APP_DATA/cache"
         search_online "$*"
         ;;
 esac
