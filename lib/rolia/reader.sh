@@ -125,22 +125,14 @@ read_chapter_loop() {
 
     while :; do
         chapter_number=$(printf '%s\n' "$current_chapter" | cut -f2)
-        reader_action=$(printf '%s\n' Next Previous 'Select chapter' 'Download chapter' Quit |
+        reader_action=$(reader_menu_options "$current_index" "$chapter_count" |
             fzf --prompt="Chapter #$chapter_number: " --header="Reading chapter #$chapter_number" \
                 --no-height --reverse --cycle) || return 0
         case $reader_action in
             Next)
-                if [ "$current_index" -le 1 ]; then
-                    message_warning "This is the oldest chapter in the list."
-                    continue
-                fi
                 current_index=$((current_index - 1))
                 ;;
             Previous)
-                if [ "$current_index" -ge "$chapter_count" ]; then
-                    message_warning "This is the newest chapter in the list."
-                    continue
-                fi
                 current_index=$((current_index + 1))
                 ;;
             'Select chapter')
@@ -173,6 +165,19 @@ read_chapter_loop() {
         export_chapter_pdf "$reader_url" "$manga_title" "$chapter_number" \
             "$(printf '%s\n' "$current_chapter" | cut -f1)" read
     done
+}
+
+reader_menu_options() {
+    current_index=$1
+    chapter_count=$2
+
+    if [ "$current_index" -gt 1 ]; then
+        printf '%s\n' Next
+    fi
+    if [ "$current_index" -lt "$chapter_count" ]; then
+        printf '%s\n' Previous
+    fi
+    printf '%s\n' 'Select chapter' 'Download chapter' Quit
 }
 
 show_chapter_screen() {

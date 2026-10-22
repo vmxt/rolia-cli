@@ -28,7 +28,7 @@ clear_terminal() {
 }
 
 message_info() {
-    message_color='\033[1;36m'
+    message_color='\033[1;34m'
     message_stream=1
     message_print "$@"
 }
