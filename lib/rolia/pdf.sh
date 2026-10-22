@@ -27,6 +27,14 @@ export_chapter_pdf() (
     chapter_number=$3
     chapter_id=$4
     pdf_action=$5
+    case $pdf_action in
+        download) progress_action=Downloading ;;
+        read) progress_action=Loading ;;
+        *)
+            printf 'Unknown chapter PDF action: %s\n' "$pdf_action" >&2
+            return 1
+            ;;
+    esac
     if ! is_allowed_source_url "$reader_url"; then
         printf 'Refusing to fetch a chapter page outside the source domains: %s\n' "$reader_url" >&2
         return 1
@@ -69,7 +77,7 @@ export_chapter_pdf() (
     trap 'exit 1' HUP INT TERM
     total_pages=$(printf '%s\n' "$image_urls" | awk 'END { print NR }')
     page_number=0
-    print_page_progress "$page_number" "$total_pages"
+    print_page_progress "$page_number" "$total_pages" "$progress_action"
     while IFS= read -r image_url; do
         if ! is_allowed_image_url "$image_url"; then
             printf 'Refusing to fetch a page image outside the approved source and image CDN domains: %s\n' "$image_url" >&2
@@ -89,7 +97,7 @@ export_chapter_pdf() (
             printf 'Could not convert page %s to PDF-compatible PNG.\n' "$page_number" >&2
             return 1
         fi
-        print_page_progress "$page_number" "$total_pages"
+        print_page_progress "$page_number" "$total_pages" "$progress_action"
     done <<EOF
 $image_urls
 EOF
@@ -133,6 +141,7 @@ cleanup_temp_dir() {
 print_page_progress() {
     completed_pages=$1
     total_pages=$2
+    progress_action=$3
     progress_width=20
     filled_width=$((completed_pages * progress_width / total_pages))
     progress_bar=
@@ -145,8 +154,8 @@ print_page_progress() {
         fi
         bar_index=$((bar_index + 1))
     done
-    printf '\rLoading pages [%s] %s/%s' \
-        "$progress_bar" "$completed_pages" "$total_pages"
+    printf '\r%s pages [%s] %s/%s' \
+        "$progress_action" "$progress_bar" "$completed_pages" "$total_pages"
 }
 
 open_pdf_in_background() {
