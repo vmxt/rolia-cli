@@ -145,7 +145,7 @@ print_page_progress() {
         fi
         bar_index=$((bar_index + 1))
     done
-    printf '\rDownloading pages [%s] %s/%s' \
+    printf '\rLoading pages [%s] %s/%s' \
         "$progress_bar" "$completed_pages" "$total_pages"
 }
 
