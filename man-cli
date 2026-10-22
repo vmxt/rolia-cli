@@ -1,0 +1,131 @@
+#!/usr/bin/env sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+APP_DATA=$DATA_HOME/man-cli
+APP_CONFIG=$CONFIG_HOME/man-cli
+DEFAULT_LIBRARY=$APP_DATA/library
+
+usage() {
+    cat <<EOF
+Usage:
+  $0 browse [library-folder]
+  $0 read <chapter-folder>
+
+The default library folder is: $DEFAULT_LIBRARY
+EOF
+}
+
+initialize() {
+    printf '%s\n' "Checking dependencies..."
+    missing=false
+
+    for dependency in curl fzf img2pdf; do
+        if command -v "$dependency" >/dev/null 2>&1; then
+            printf '  [ok] %s\n' "$dependency"
+        else
+            printf '  [missing] %s\n' "$dependency"
+            missing=true
+        fi
+    done
+
+    mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$DATA_HOME/man-cli/cache"
+    printf '\n%s\n' "Initialized man-cli folders:"
+    printf '  Library:   %s\n' "$DEFAULT_LIBRARY"
+    printf '  Downloads: %s\n' "$APP_DATA/downloads"
+    printf '  Config:    %s\n' "$APP_CONFIG"
+
+    if [ "$missing" = true ]; then
+        printf '\n%s\n' "Install missing tools when you are ready to add catalog search and PDF export."
+    fi
+    printf '%s\n' "Catalog search and chapter-to-PDF support are not configured yet."
+}
+
+is_image() {
+    case $1 in
+        *.[Aa][Vv][Ii][Ff]|*.[Bb][Mm][Pp]|*.[Gg][Ii][Ff]|*.[Jj][Pp][Ee][Gg]|*.[Jj][Pp][Gg]|*.[Pp][Nn][Gg]|*.[Ww][Ee][Bb][Pp])
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+list_series() {
+    library=$1
+    if [ ! -d "$library" ]; then
+        printf 'Library folder does not exist: %s\n' "$library" >&2
+        return 1
+    fi
+
+    found=false
+    printf 'Series in %s:\n' "$library"
+    for path in "$library"/*; do
+        if [ -d "$path" ]; then
+            printf '  %s\n' "${path##*/}"
+            found=true
+        fi
+    done
+
+    if [ "$found" = false ]; then
+        printf '  (no series folders found)\n'
+    fi
+}
+
+list_pages() {
+    chapter=$1
+    if [ ! -d "$chapter" ]; then
+        printf 'Chapter folder does not exist: %s\n' "$chapter" >&2
+        return 1
+    fi
+
+    found=false
+    printf 'Image pages in %s:\n' "$chapter"
+    for path in "$chapter"/*; do
+        if [ -f "$path" ] && is_image "$path"; then
+            printf '  %s\n' "${path##*/}"
+            found=true
+        fi
+    done
+
+    if [ "$found" = false ]; then
+        printf '  (no supported image pages found)\n'
+    fi
+}
+
+case ${1-} in
+    '')
+        initialize
+        ;;
+    init)
+        if [ "$#" -ne 1 ]; then
+            usage >&2
+            exit 2
+        fi
+        initialize
+        ;;
+    browse)
+        if [ "$#" -gt 2 ]; then
+            usage >&2
+            exit 2
+        fi
+        list_series "${2:-$DEFAULT_LIBRARY}"
+        ;;
+    read)
+        if [ "$#" -ne 2 ]; then
+            usage >&2
+            exit 2
+        fi
+        list_pages "$2"
+        ;;
+    -h|--help)
+        usage
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac
