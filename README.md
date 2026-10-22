@@ -31,6 +31,10 @@ The script requires:
   removed automatically)
 - A PDF viewer and a desktop opener such as `xdg-open` or `gio`
 
+At startup, `man-cli` checks that its required command-line tools are
+installed. If any are missing, it stops and prints the missing dependencies
+and an Ubuntu/Debian installation command in red.
+
 The installation steps below target Ubuntu and Debian. Other Linux
 distributions need equivalent packages. The script is not a native
 PowerShell command; on Windows, run it in WSL with the Linux dependencies
