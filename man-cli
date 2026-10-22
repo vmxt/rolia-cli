@@ -72,14 +72,10 @@ initialize() {
 
 search_online() {
     search_term=$1
-    if [ -z "$search_term" ]; then
+    while [ -z "$search_term" ]; do
         printf '\033[1;36mSearch manga: \033[0m'
         IFS= read -r search_term || return 0
-    fi
-    if [ -z "$search_term" ]; then
-        printf '%s\n' "Search text cannot be empty." >&2
-        return 1
-    fi
+    done
     case $SOURCE_BASE_URL in
         http://*|https://*) ;;
         *)
