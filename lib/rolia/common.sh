@@ -21,6 +21,12 @@ Source URL: $SOURCE_BASE_URL
 EOF
 }
 
+clear_terminal() {
+    if [ -t 1 ] && [ "${TERM:-dumb}" != dumb ]; then
+        printf '\033[3J\033[H\033[2J'
+    fi
+}
+
 check_dependencies() {
     printf '%s\n' "Checking dependencies..."
     missing_dependencies=

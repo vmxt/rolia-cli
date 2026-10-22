@@ -79,7 +79,9 @@ pick_chapter() {
     chapter_prompt=$2
     selected_chapter=$(printf '%s\n' "$chapter_options" |
         fzf --delimiter="$(printf '\t')" --with-nth=2 \
-            --prompt="$chapter_prompt" --height=80% --reverse --cycle --no-sort) || return 1
+            --no-height \
+            --color=hl:green,hl+:bright-green \
+            --prompt="$chapter_prompt" --reverse --cycle --no-sort) || return 1
     [ -n "$selected_chapter" ]
 }
 
@@ -125,7 +127,7 @@ read_chapter_loop() {
         chapter_number=$(printf '%s\n' "$current_chapter" | cut -f2)
         reader_action=$(printf '%s\n' Next Previous 'Select chapter' 'Download chapter' Quit |
             fzf --prompt="Chapter #$chapter_number: " --header="Reading chapter #$chapter_number" \
-                --height=40% --reverse --cycle) || return 0
+                --no-height --reverse --cycle) || return 0
         case $reader_action in
             Next)
                 if [ "$current_index" -le 1 ]; then
@@ -176,7 +178,6 @@ read_chapter_loop() {
 show_chapter_screen() {
     manga_title=$1
     chapter_number=$2
-    printf '\033[H\033[2J\033[3J'
     printf '\033[1;36m%s\033[0m\n' "$manga_title"
     printf '\033[1mChapter #%s\033[0m\n\n' "$chapter_number"
 }

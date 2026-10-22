@@ -25,10 +25,19 @@ permanent PDFs.
 With no arguments, the program prompts for a manga title. A query searches
 for that title directly. An exact, unambiguous title match is selected
 automatically; otherwise, matching titles are shown in an interactive menu.
+Search queries must contain at least two characters.
 .PP
 During reading, the chapter menu provides Next, Previous, Select chapter,
 Download chapter, and Quit. Temporary files are removed after the PDF viewer
 closes.
+.PP
+The series selector starts with the search query already entered, allowing
+results to be narrowed and refined immediately. Type in the chapter selector
+to filter by chapter number. Matching text is highlighted in both selectors.
+The selectors use the full terminal screen with the prompt at the top, so old
+output does not remain above the menu. The initial search prompt is not
+cleared, keeping it visible in terminals such as the VS Code integrated
+terminal.
 .SH COMMANDS
 .TP
 .B search

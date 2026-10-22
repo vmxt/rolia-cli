@@ -1,9 +1,16 @@
 
 search_online() {
     search_term=$1
-    while [ -z "$search_term" ]; do
-        printf '\033[1;36mSearch manga: \033[0m'
-        IFS= read -r search_term || return 0
+    while :; do
+        while [ -z "$search_term" ]; do
+            printf '\033[1;36mSearch manga: \033[0m'
+            IFS= read -r search_term || return 0
+        done
+        if [ "${#search_term}" -ge 2 ]; then
+            break
+        fi
+        printf '%s\n' "Search query must be at least 2 characters." >&2
+        search_term=
     done
     case $SOURCE_BASE_URL in
         http://*|https://*) ;;
@@ -51,7 +58,9 @@ search_online() {
     else
         selected_manga=$(printf '%s\n' "$manga_rows" |
             fzf --delimiter="$(printf '\t')" --with-nth=2 \
-                --prompt="Select manga: " --height=80% --reverse --cycle) || return 0
+                --no-height \
+                --query="$search_term" --color=hl:green,hl+:bright-green \
+                --prompt="Select manga: " --reverse --cycle) || return 0
     fi
     manga_id=$(printf '%s\n' "$selected_manga" | cut -f1)
     manga_title=$(printf '%s\n' "$selected_manga" | cut -f2)
@@ -61,6 +70,5 @@ search_online() {
         return 1
     fi
 
-    printf '\n\033[1;36mSelected manga:\033[0m \033[1m%s\033[0m\n\n' "$manga_title"
     select_chapter "$manga_id" "$manga_slug" "$manga_title"
 }
