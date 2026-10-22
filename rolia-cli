@@ -269,18 +269,18 @@ read_chapter_loop() {
                 --height=40% --reverse --cycle) || return 0
         case $reader_action in
             Next)
-                if [ "$current_index" -ge "$chapter_count" ]; then
+                if [ "$current_index" -le 1 ]; then
                     printf '%s\n' "This is the oldest chapter in the list."
                     continue
                 fi
-                current_index=$((current_index + 1))
+                current_index=$((current_index - 1))
                 ;;
             Previous)
-                if [ "$current_index" -le 1 ]; then
+                if [ "$current_index" -ge "$chapter_count" ]; then
                     printf '%s\n' "This is the newest chapter in the list."
                     continue
                 fi
-                current_index=$((current_index - 1))
+                current_index=$((current_index + 1))
                 ;;
             'Select chapter')
                 if ! pick_chapter "$chapter_rows" "Select chapter: "; then
