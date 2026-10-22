@@ -50,13 +50,30 @@ sudo apt update
 sudo apt install curl fzf jq coreutils ffmpeg img2pdf lsof xdg-utils
 ```
 
-Install the command from this checkout into `~/.local/bin`:
+Install the command, its modules, and the man page from this checkout with
+one command:
 
 ```sh
-mkdir -p "$HOME/.local/bin"
-install -m 755 ./rolia-cli "$HOME/.local/bin/rolia-cli"
-rm -f "$HOME/.local/bin/man-cli"
+./install.sh
 ```
+
+The installer places the command and implementation under `~/.local/bin`,
+the modules under `~/.local/bin/lib/rolia/`, and the manual page under
+`$XDG_DATA_HOME/man/man1/` (or `~/.local/share/man/man1/` if
+`XDG_DATA_HOME` is unset). The installed files are kept together so the
+command can load its implementation and modules. Read the manual with
+`man rolia-cli`.
+
+## Code layout
+
+- `rolia-cli` is the executable launcher.
+- `rolia` initializes configuration, imports the modules, and dispatches
+  commands.
+- `lib/rolia/common.sh` contains usage, dependency checks, and initialization.
+- `lib/rolia/search.sh` handles title search.
+- `lib/rolia/reader.sh` handles chapter selection and navigation.
+- `lib/rolia/pdf.sh` downloads pages and opens or saves chapter PDFs.
+- `lib/rolia/library.sh` lists local series and chapter pages.
 
 Make sure `~/.local/bin` is on your `PATH`. For Bash, add this line to
 `~/.bashrc` if it is not already there:
@@ -83,7 +100,9 @@ You can also run the script directly from the checkout:
 Remove the installed command:
 
 ```sh
-rm "$HOME/.local/bin/rolia-cli"
+rm "$HOME/.local/bin/rolia-cli" "$HOME/.local/bin/rolia"
+rm -r "$HOME/.local/bin/lib/rolia"
+rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/man/man1/rolia-cli.1"
 ```
 
 If you added the `PATH` line to `~/.bashrc` only for `rolia-cli`, remove that

@@ -1,0 +1,151 @@
+.TH "ROLIA-CLI" "1" "October 2026" "rolia-cli" "User Commands"
+.SH NAME
+rolia-cli \- search, browse, and read manga from the command line
+.SH SYNOPSIS
+.B rolia-cli
+[\fI\,QUERY\/\fR]
+.br
+.B rolia-cli
+search [\fI\,QUERY\/\fR]
+.br
+.B rolia-cli
+init
+.br
+.B rolia-cli
+browse [\fI\,LIBRARY-DIRECTORY\/\fR]
+.br
+.B rolia-cli
+read \fI\,CHAPTER-DIRECTORY\/\fR
+.SH DESCRIPTION
+.B rolia-cli
+searches manga titles using RoliaScan, lets you select a series and chapter,
+and opens chapter pages as a temporary PDF. Chapters can also be saved as
+permanent PDFs.
+.PP
+With no arguments, the program prompts for a manga title. A query searches
+for that title directly. An exact, unambiguous title match is selected
+automatically; otherwise, matching titles are shown in an interactive menu.
+.PP
+During reading, the chapter menu provides Next, Previous, Select chapter,
+Download chapter, and Quit. Temporary files are removed after the PDF viewer
+closes.
+.SH COMMANDS
+.TP
+.B search
+Search interactively when no query is given, or search for the specified
+\fIQUERY\fR.
+.TP
+.B init
+Check dependencies and create the application directories.
+.TP
+.B browse
+List series directories in the optional library directory, or in the default
+library if omitted.
+.TP
+.B read
+List supported image pages in the specified chapter directory.
+.SH READER CONTROLS
+.TP
+.B Next
+Move to the next chapter in the chapter list and open it.
+.TP
+.B Previous
+Move to the previous chapter in the chapter list and open it.
+.TP
+.B Select chapter
+Choose a chapter from the series chapter list.
+.TP
+.B Download chapter
+Save a permanent PDF of the current chapter under the downloads directory.
+.TP
+.B Quit
+Leave the reader menu.
+.SH REQUIREMENTS
+The program requires a POSIX-compatible shell and the following commands:
+.BR curl ,
+.BR fzf ,
+.BR jq ,
+.BR md5sum ,
+.BR ffmpeg ,
+.BR img2pdf ,
+and
+.BR lsof .
+A PDF viewer and a desktop opener such as
+.BR xdg-open
+or
+.BR gio
+are also required. Run
+.B rolia-cli init
+to check for missing dependencies.
+.SH ENVIRONMENT
+.TP
+.B XDG_DATA_HOME
+Base directory for application data. Defaults to
+\fI$HOME/.local/share\fR.
+.TP
+.B XDG_CONFIG_HOME
+Base directory for application configuration. Defaults to
+\fI$HOME/.config\fR.
+.TP
+.B ROLIA_CLI_SOURCE_BASE_URL
+Source base URL. Defaults to
+.I https://roliascan.com.
+.TP
+.B ROLIA_CLI_PDF_VIEWER
+PDF viewer command used to open temporary chapter PDFs. The command must
+accept the PDF path as an argument.
+.PP
+For compatibility, the program also accepts
+.B MAN_CLI_SOURCE_BASE_URL
+and
+.B MAN_CLI_PDF_VIEWER
+when their corresponding
+.B ROLIA_CLI_
+variables are not set.
+.SH FILES
+.TP
+.I ~/.local/share/rolia-cli/downloads/
+Downloaded chapter PDFs.
+.TP
+.I ~/.local/share/rolia-cli/library/
+Default library directory.
+.TP
+.I ~/.config/rolia-cli/
+Application configuration directory.
+.TP
+.I ~/.local/share/rolia-cli/cache/
+Application cache directory.
+.PP
+The data and configuration paths use
+.B XDG_DATA_HOME
+and
+.B XDG_CONFIG_HOME
+when set. Existing
+.I man-cli
+data and configuration directories are reused when the corresponding
+.I rolia-cli
+directories do not exist.
+.SH EXAMPLES
+Start an interactive search:
+.RS
+.B rolia-cli
+.RE
+.PP
+Search for a title:
+.RS
+.B rolia-cli
+"wind breaker"
+.RE
+.PP
+Initialize application directories and check dependencies:
+.RS
+.B rolia-cli init
+.RE
+.SH BUGS
+Report bugs at
+.UR https://github.com/vmxt/rolia-cli/issues
+the rolia-cli issue tracker
+.UE .
+.SH COPYRIGHT
+Use this program only for content you are authorized to access. Follow the
+source site's terms and applicable copyright laws.

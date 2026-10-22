@@ -1,0 +1,61 @@
+DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+APP_DATA=$DATA_HOME/rolia-cli
+APP_CONFIG=$CONFIG_HOME/rolia-cli
+[ -d "$APP_DATA" ] || [ ! -d "$DATA_HOME/man-cli" ] || APP_DATA=$DATA_HOME/man-cli
+[ -d "$APP_CONFIG" ] || [ ! -d "$CONFIG_HOME/man-cli" ] || APP_CONFIG=$CONFIG_HOME/man-cli
+DEFAULT_LIBRARY=$APP_DATA/library
+SOURCE_BASE_URL=${ROLIA_CLI_SOURCE_BASE_URL:-${MAN_CLI_SOURCE_BASE_URL:-https://roliascan.com}}
+PDF_VIEWER=${ROLIA_CLI_PDF_VIEWER:-${MAN_CLI_PDF_VIEWER:-}}
+
+
+. "$ROLIA_ROOT/lib/rolia/common.sh"
+. "$ROLIA_ROOT/lib/rolia/search.sh"
+. "$ROLIA_ROOT/lib/rolia/reader.sh"
+. "$ROLIA_ROOT/lib/rolia/pdf.sh"
+. "$ROLIA_ROOT/lib/rolia/library.sh"
+
+rolia_main() {
+    case ${1-} in
+        '')
+            check_dependencies
+            mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$APP_DATA/cache"
+            search_online ""
+            ;;
+        search)
+            check_dependencies
+            mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$APP_DATA/cache"
+            shift
+            search_online "$*"
+            ;;
+        init)
+            if [ "$#" -ne 1 ]; then
+                usage >&2
+                exit 2
+            fi
+            initialize
+            ;;
+        browse)
+            if [ "$#" -gt 2 ]; then
+                usage >&2
+                exit 2
+            fi
+            list_series "${2:-$DEFAULT_LIBRARY}"
+            ;;
+        read)
+            if [ "$#" -ne 2 ]; then
+                usage >&2
+                exit 2
+            fi
+            list_pages "$2"
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            check_dependencies
+            mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$APP_DATA/cache"
+            search_online "$*"
+            ;;
+    esac
+}
