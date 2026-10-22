@@ -19,6 +19,12 @@ Usage:
   $0 read <chapter-folder>
 
 The default library folder is: $DEFAULT_LIBRARY
+PDF downloads folder: $APP_DATA/downloads
+Reading extracts the selected chapter pages into a temporary PDF and opens it.
+Reader menu: Next, Previous, Select chapter, Download chapter, Quit.
+Temporary PDFs are removed automatically after the viewer closes.
+The chapter menu stays available while the PDF is open; automatic cleanup requires lsof.
+Set MAN_CLI_PDF_VIEWER to choose a PDF viewer command.
 Source URL: $SOURCE_BASE_URL
 EOF
 }
@@ -27,7 +33,7 @@ check_dependencies() {
     printf '%s\n' "Checking dependencies..."
     missing=false
 
-    for dependency in curl fzf jq; do
+    for dependency in curl fzf jq md5sum ffmpeg img2pdf; do
         if command -v "$dependency" >/dev/null 2>&1; then
             printf '  [ok] %s\n' "$dependency"
         else
@@ -37,19 +43,19 @@ check_dependencies() {
     done
 
     if [ "$missing" = true ]; then
-        printf '%s\n' "Install the missing dependencies before searching." >&2
+        printf '%s\n' "Install the missing dependencies before searching and exporting chapters." >&2
         return 1
     fi
 }
 
 initialize() {
-    check_dependencies || true
+    check_dependencies
     mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$DATA_HOME/man-cli/cache"
     printf '\n%s\n' "Initialized man-cli folders:"
     printf '  Library:   %s\n' "$DEFAULT_LIBRARY"
     printf '  Downloads: %s\n' "$APP_DATA/downloads"
     printf '  Config:    %s\n' "$APP_CONFIG"
-    printf '\n%s\n' "Direct title search is available. Chapter selection and PDF export are not configured yet."
+    printf '\n%s\n' "Search for a title, select a chapter, and read or download it as a PDF."
 }
 
 search_online() {
@@ -92,7 +98,8 @@ search_online() {
         [(.results // [])[] |
           [(.id // ""),
            (.title // "Untitled"),
-           (.permalink // ($base + "/manga/" + (.slug // "")))]
+           (.permalink // ($base + "/manga/" + (.slug // ""))),
+           (.slug // "")]
           | @tsv] | .[]')
     if [ -z "$manga_rows" ]; then
         printf 'No manga found for "%s".\n' "$search_term"
@@ -104,6 +111,7 @@ search_online() {
     manga_id=$(printf '%s\n' "$selected_manga" | cut -f1)
     manga_title=$(printf '%s\n' "$selected_manga" | cut -f2)
     manga_url=$(printf '%s\n' "$selected_manga" | cut -f3)
+    manga_slug=$(printf '%s\n' "$selected_manga" | cut -f4)
     if [ -z "$manga_id" ]; then
         printf '%s\n' "The selected result has no manga ID." >&2
         return 1
@@ -111,7 +119,366 @@ search_online() {
 
     printf '\nSelected manga: %s\n' "$manga_title"
     printf 'Series page: %s\n' "$manga_url"
-    printf '%s\n' "Chapter selection and PDF export will be added after an approved direct chapter/image API is available."
+    select_chapter "$manga_id" "$manga_slug" "$manga_title"
+}
+
+select_chapter() {
+    manga_numeric_id=$1
+    manga_slug=$2
+    manga_title=$3
+    case $manga_numeric_id in
+        ''|*[!0-9]*)
+            printf '%s\n' "The search result did not include a valid numeric manga ID." >&2
+            return 1
+            ;;
+    esac
+
+    chapter_rows=
+    offset=0
+    while :; do
+        timestamp=$(date +%s)
+        utc_hour=$(date -u +%Y%m%d%H)
+        token=$(printf '%s' "${timestamp}mng_ch_${utc_hour}" | md5sum | cut -c1-16)
+        if ! chapter_json=$(curl --silent --show-error --fail --location --max-time 30 \
+            --get \
+            --data-urlencode "manga_id=$manga_numeric_id" \
+            --data-urlencode "offset=$offset" \
+            --data-urlencode "limit=500" \
+            --data-urlencode "order=DESC" \
+            --data-urlencode "_t=$token" \
+            --data-urlencode "_ts=$timestamp" \
+            "${SOURCE_BASE_URL%/}/auth/manga-chapters"); then
+            printf 'Could not load chapters for %s.\n' "$manga_title" >&2
+            return 1
+        fi
+        if ! printf '%s' "$chapter_json" | jq -e \
+            '(.success == true) and ((.chapters // []) | type == "array")' >/dev/null; then
+            error_message=$(printf '%s' "$chapter_json" |
+                jq -r '.message // .error // "The chapter endpoint returned an unsuccessful response."' 2>/dev/null) ||
+                error_message="The chapter endpoint returned an unsuccessful response."
+            printf 'Could not load chapters: %s\n' "$error_message" >&2
+            return 1
+        fi
+
+        chapter_batch=$(printf '%s' "$chapter_json" | jq -r '
+            [(.chapters // [])[] as $chapter
+            | (($chapter.url // "") | split("?")[0] | split("/") | map(select(length > 0)) | last) as $reader_id
+            | [($reader_id // (if ($chapter.chapter != null and $chapter.id != null) then
+                    "ch" + ($chapter.chapter | tostring) + "-" + ($chapter.id | tostring)
+                  else "" end)),
+               ($chapter.chapter // ""),
+               ($chapter.url // "")]
+            | @tsv] | .[]')
+        if [ -n "$chapter_batch" ]; then
+            if [ -n "$chapter_rows" ]; then
+                chapter_rows=$(printf '%s\n%s' "$chapter_rows" "$chapter_batch")
+            else
+                chapter_rows=$chapter_batch
+            fi
+        fi
+
+        batch_count=$(printf '%s' "$chapter_json" | jq -r '(.chapters // []) | length')
+        has_more=$(printf '%s' "$chapter_json" | jq -r '.has_more // false')
+        if [ "$has_more" != true ] || [ "$batch_count" -eq 0 ]; then
+            break
+        fi
+        offset=$((offset + batch_count))
+    done
+
+    if [ -z "$chapter_rows" ]; then
+        printf 'No chapters found for %s.\n' "$manga_title"
+        return 0
+    fi
+
+    chapter_rows=$(printf '%s\n' "$chapter_rows" | awk -F '\t' '!seen[$1]++')
+    if ! pick_chapter "$chapter_rows" "Select chapter: "; then
+        return 0
+    fi
+    read_chapter_loop "$chapter_rows" "$selected_chapter" "$manga_title" "$manga_slug"
+}
+
+pick_chapter() {
+    chapter_options=$1
+    chapter_prompt=$2
+    selected_chapter=$(printf '%s\n' "$chapter_options" |
+        fzf --delimiter="$(printf '\t')" --with-nth=2 \
+            --prompt="$chapter_prompt" --height=80% --reverse --cycle --no-sort) || return 1
+    [ -n "$selected_chapter" ]
+}
+
+chapter_reader_url() {
+    chapter_row=$1
+    manga_slug=$2
+    chapter_id=$(printf '%s\n' "$chapter_row" | cut -f1)
+    chapter_url=$(printf '%s\n' "$chapter_row" | cut -f3)
+    case $chapter_url in
+        http://*|https://*) printf '%s\n' "$chapter_url" ;;
+        /*) printf '%s\n' "${SOURCE_BASE_URL%/}$chapter_url" ;;
+        *)
+            if [ -n "$manga_slug" ]; then
+                printf '%s\n' "${SOURCE_BASE_URL%/}/read/$manga_slug/$chapter_id/"
+            else
+                printf '%s\n' "The selected chapter has no reader URL." >&2
+                return 1
+            fi
+            ;;
+    esac
+}
+
+read_chapter_loop() {
+    chapter_rows=$1
+    current_chapter=$2
+    manga_title=$3
+    manga_slug=$4
+    current_index=$(printf '%s\n' "$chapter_rows" |
+        awk -v selected="$current_chapter" '$0 == selected { print NR; exit }')
+    chapter_count=$(printf '%s\n' "$chapter_rows" | awk 'END { print NR }')
+    if [ -z "$current_index" ]; then
+        printf '%s\n' "The selected chapter is not in the chapter list." >&2
+        return 1
+    fi
+
+    chapter_number=$(printf '%s\n' "$current_chapter" | cut -f2)
+    reader_url=$(chapter_reader_url "$current_chapter" "$manga_slug") || return 1
+    printf '\nSelected chapter: %s\n' "$chapter_number"
+    export_chapter_pdf "$reader_url" "$manga_title" "$chapter_number" \
+        "$(printf '%s\n' "$current_chapter" | cut -f1)" read
+
+    while :; do
+        chapter_number=$(printf '%s\n' "$current_chapter" | cut -f2)
+        reader_action=$(printf '%s\n' Next Previous 'Select chapter' 'Download chapter' Quit |
+            fzf --prompt="Chapter #$chapter_number: " --header="Reading chapter #$chapter_number" \
+                --height=40% --reverse --cycle) || return 0
+        case $reader_action in
+            Next)
+                if [ "$current_index" -ge "$chapter_count" ]; then
+                    printf '%s\n' "This is the oldest chapter in the list."
+                    continue
+                fi
+                current_index=$((current_index + 1))
+                ;;
+            Previous)
+                if [ "$current_index" -le 1 ]; then
+                    printf '%s\n' "This is the newest chapter in the list."
+                    continue
+                fi
+                current_index=$((current_index - 1))
+                ;;
+            'Select chapter')
+                if ! pick_chapter "$chapter_rows" "Select chapter: "; then
+                    continue
+                fi
+                current_chapter=$selected_chapter
+                current_index=$(printf '%s\n' "$chapter_rows" |
+                    awk -v selected="$current_chapter" '$0 == selected { print NR; exit }')
+                ;;
+            'Download chapter')
+                reader_url=$(chapter_reader_url "$current_chapter" "$manga_slug") || return 1
+                export_chapter_pdf "$reader_url" "$manga_title" "$chapter_number" \
+                    "$(printf '%s\n' "$current_chapter" | cut -f1)" download
+                continue
+                ;;
+            Quit)
+                return 0
+                ;;
+            *)
+                continue
+                ;;
+        esac
+
+        current_chapter=$(printf '%s\n' "$chapter_rows" |
+            awk -v selected_index="$current_index" 'NR == selected_index { print; exit }')
+        chapter_number=$(printf '%s\n' "$current_chapter" | cut -f2)
+        reader_url=$(chapter_reader_url "$current_chapter" "$manga_slug") || return 1
+        printf '\nSelected chapter: %s\n' "$chapter_number"
+        export_chapter_pdf "$reader_url" "$manga_title" "$chapter_number" \
+            "$(printf '%s\n' "$current_chapter" | cut -f1)" read
+    done
+}
+
+is_allowed_source_url() {
+    case $1 in
+        "${SOURCE_BASE_URL%/}"/*|https://roliascan.com/*|https://*.roliascan.com/*|https://roliascan.org/*|https://*.roliascan.org/*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+export_chapter_pdf() (
+    reader_url=$1
+    manga_title=$2
+    chapter_number=$3
+    chapter_id=$4
+    pdf_action=$5
+    if ! is_allowed_source_url "$reader_url"; then
+        printf 'Refusing to fetch a chapter page outside the source domains: %s\n' "$reader_url" >&2
+        return 1
+    fi
+    case $chapter_id in
+        *-*) post_id=${chapter_id##*-} ;;
+        *) post_id=$chapter_id ;;
+    esac
+    case $post_id in
+        ''|*[!0-9]*)
+            printf 'The selected chapter has an invalid image-content ID: %s\n' "$chapter_id" >&2
+            return 1
+            ;;
+    esac
+    if ! chapter_content=$(curl --silent --show-error --fail --location --max-time 30 \
+        --get --data-urlencode "chapter_id=$post_id" \
+        "${SOURCE_BASE_URL%/}/auth/chapter-content"); then
+        printf 'Could not load page images for chapter %s.\n' "$chapter_number" >&2
+        return 1
+    fi
+    if ! printf '%s' "$chapter_content" | jq -e \
+        '(.success == true) and ((.images // []) | type == "array") and ((.images // []) | length > 0)' >/dev/null; then
+        error_message=$(printf '%s' "$chapter_content" |
+            jq -r '.message // .error // "The chapter has no page images."' 2>/dev/null) ||
+            error_message="The chapter has no page images."
+        printf 'Could not load page images: %s\n' "$error_message" >&2
+        return 1
+    fi
+    image_urls=$(printf '%s' "$chapter_content" | jq -r '.images[] | select(type == "string")')
+    if [ -z "$image_urls" ]; then
+        printf 'No image URLs were returned for chapter %s.\n' "$chapter_number" >&2
+        return 1
+    fi
+
+    temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/man-cli.XXXXXX") || {
+        printf '%s\n' "Could not create a temporary folder for chapter pages." >&2
+        return 1
+    }
+    trap cleanup_temp_dir 0
+    trap 'exit 1' HUP INT TERM
+    total_pages=$(printf '%s\n' "$image_urls" | awk 'END { print NR }')
+    page_number=0
+    print_page_progress "$page_number" "$total_pages"
+    while IFS= read -r image_url; do
+        if ! is_allowed_source_url "$image_url"; then
+            printf 'Refusing to fetch a page image outside the source domains: %s\n' "$image_url" >&2
+            return 1
+        fi
+        page_number=$((page_number + 1))
+        image_file=$(printf '%s/page-%04d' "$temp_dir" "$page_number")
+        if ! curl --silent --show-error --fail --location --max-time 60 \
+            --referer "$reader_url" --output "$image_file" "$image_url"; then
+            printf '\n' >&2
+            printf 'Failed to download page %s.\n' "$page_number" >&2
+            return 1
+        fi
+        converted_file=$(printf '%s/converted-%04d.png' "$temp_dir" "$page_number")
+        if ! ffmpeg -nostdin -loglevel error -y -i "$image_file" -frames:v 1 "$converted_file"; then
+            printf '\n' >&2
+            printf 'Could not convert page %s to PDF-compatible PNG.\n' "$page_number" >&2
+            return 1
+        fi
+        print_page_progress "$page_number" "$total_pages"
+    done <<EOF
+$image_urls
+EOF
+    printf '\n'
+
+    safe_title=$(printf '%s' "$manga_title" | tr -cs '[:alnum:]_.-' '-')
+    safe_chapter=$(printf '%s' "$chapter_number" | tr -cs '[:alnum:]_.-' '-')
+    [ -n "$safe_title" ] || safe_title=manga
+    [ -n "$safe_chapter" ] || safe_chapter=chapter
+    pdf_name=$safe_title-Chapter-$safe_chapter.pdf
+    if [ "$pdf_action" = download ]; then
+        mkdir -p "$APP_DATA/downloads"
+        pdf_path=$APP_DATA/downloads/$pdf_name
+        pdf_suffix=1
+        while [ -e "$pdf_path" ]; do
+            pdf_path=$APP_DATA/downloads/$safe_title-Chapter-$safe_chapter-$pdf_suffix.pdf
+            pdf_suffix=$((pdf_suffix + 1))
+        done
+    else
+        pdf_path=$temp_dir/$pdf_name
+    fi
+    if ! img2pdf "$temp_dir"/converted-*.png --output "$pdf_path"; then
+        rm -f -- "$pdf_path"
+        printf '%s\n' "PDF generation failed; temporary page files will be cleaned up." >&2
+        return 1
+    fi
+    if [ "$pdf_action" = download ]; then
+        printf '\nPDF saved to: %s\n' "$pdf_path"
+        cleanup_temp_dir
+    else
+        open_pdf_in_background "$pdf_path" "$temp_dir"
+    fi
+)
+
+cleanup_temp_dir() {
+    if [ -n "${temp_dir:-}" ] && [ -d "$temp_dir" ]; then
+        rm -rf "$temp_dir"
+    fi
+}
+
+print_page_progress() {
+    completed_pages=$1
+    total_pages=$2
+    progress_width=20
+    filled_width=$((completed_pages * progress_width / total_pages))
+    progress_bar=
+    bar_index=0
+    while [ "$bar_index" -lt "$progress_width" ]; do
+        if [ "$bar_index" -lt "$filled_width" ]; then
+            progress_bar=${progress_bar}#
+        else
+            progress_bar=${progress_bar}-
+        fi
+        bar_index=$((bar_index + 1))
+    done
+    printf '\rDownloading pages [%s] %s/%s' \
+        "$progress_bar" "$completed_pages" "$total_pages"
+}
+
+open_pdf_in_background() {
+    pdf_path=$1
+    temp_dir=$2
+    if ! command -v lsof >/dev/null 2>&1; then
+        printf '%s\n' "Automatic PDF cleanup needs lsof; install it before reading chapters." >&2
+        return 1
+    fi
+    if [ -n "${MAN_CLI_PDF_VIEWER:-}" ]; then
+        if ! command -v "$MAN_CLI_PDF_VIEWER" >/dev/null 2>&1; then
+            printf 'Configured PDF viewer not found: %s\n' "$MAN_CLI_PDF_VIEWER" >&2
+            return 1
+        fi
+        "$MAN_CLI_PDF_VIEWER" "$pdf_path" >/dev/null 2>&1 &
+    elif command -v zathura >/dev/null 2>&1; then
+        zathura "$pdf_path" >/dev/null 2>&1 &
+    elif command -v mupdf >/dev/null 2>&1; then
+        mupdf "$pdf_path" >/dev/null 2>&1 &
+    elif command -v evince >/dev/null 2>&1; then
+        evince --wait "$pdf_path" >/dev/null 2>&1 &
+    elif command -v atril >/dev/null 2>&1; then
+        atril --wait "$pdf_path" >/dev/null 2>&1 &
+    elif command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "$pdf_path" >/dev/null 2>&1 &
+    elif command -v gio >/dev/null 2>&1; then
+        gio open "$pdf_path" >/dev/null 2>&1 &
+    else
+        printf '%s\n' "No PDF opener found. Install a PDF viewer or set MAN_CLI_PDF_VIEWER." >&2
+        return 1
+    fi
+
+    cleanup_after_pdf_close "$pdf_path" "$temp_dir" </dev/null >/dev/null 2>&1 &
+    trap - 0
+}
+
+cleanup_after_pdf_close() {
+    pdf_path=$1
+    temp_dir=$2
+    while ! lsof -t "$pdf_path" >/dev/null 2>&1; do
+        sleep 1
+    done
+    while lsof -t "$pdf_path" >/dev/null 2>&1; do
+        sleep 1
+    done
+    rm -rf "$temp_dir"
 }
 
 is_image() {
