@@ -33,7 +33,8 @@ The script requires:
 
 At startup, `man-cli` checks that its required command-line tools are
 installed. If any are missing, it stops and prints the missing dependencies
-and an Ubuntu/Debian installation command in red.
+and an Ubuntu/Debian installation command in red. That command includes only
+the packages needed for the missing tools.
 
 The installation steps below target Ubuntu and Debian. Other Linux
 distributions need equivalent packages. The script is not a native
