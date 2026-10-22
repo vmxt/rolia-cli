@@ -1,28 +1,33 @@
 #!/usr/bin/env sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 APP_DATA=$DATA_HOME/man-cli
 APP_CONFIG=$CONFIG_HOME/man-cli
 DEFAULT_LIBRARY=$APP_DATA/library
+SOURCE_BASE_URL=${MAN_CLI_SOURCE_BASE_URL:-https://roliascan.com}
 
 usage() {
     cat <<EOF
 Usage:
+  $0                         Prompt for a manga title and select a result
+  $0 <query>                 Search titles directly, e.g. $0 one piece
+  $0 search [query]          Search titles interactively or with a query
+  $0 init                    Check dependencies and create application folders
   $0 browse [library-folder]
   $0 read <chapter-folder>
 
 The default library folder is: $DEFAULT_LIBRARY
+Source URL: $SOURCE_BASE_URL
 EOF
 }
 
-initialize() {
+check_dependencies() {
     printf '%s\n' "Checking dependencies..."
     missing=false
 
-    for dependency in curl fzf img2pdf; do
+    for dependency in curl fzf jq; do
         if command -v "$dependency" >/dev/null 2>&1; then
             printf '  [ok] %s\n' "$dependency"
         else
@@ -31,16 +36,82 @@ initialize() {
         fi
     done
 
+    if [ "$missing" = true ]; then
+        printf '%s\n' "Install the missing dependencies before searching." >&2
+        return 1
+    fi
+}
+
+initialize() {
+    check_dependencies || true
     mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$DATA_HOME/man-cli/cache"
     printf '\n%s\n' "Initialized man-cli folders:"
     printf '  Library:   %s\n' "$DEFAULT_LIBRARY"
     printf '  Downloads: %s\n' "$APP_DATA/downloads"
     printf '  Config:    %s\n' "$APP_CONFIG"
+    printf '\n%s\n' "Direct title search is available. Chapter selection and PDF export are not configured yet."
+}
 
-    if [ "$missing" = true ]; then
-        printf '\n%s\n' "Install missing tools when you are ready to add catalog search and PDF export."
+search_online() {
+    search_term=$1
+    if [ -z "$search_term" ]; then
+        printf '\033[1;36mSearch manga: \033[0m'
+        IFS= read -r search_term || return 0
     fi
-    printf '%s\n' "Catalog search and chapter-to-PDF support are not configured yet."
+    if [ -z "$search_term" ]; then
+        printf '%s\n' "Search text cannot be empty." >&2
+        return 1
+    fi
+    case $SOURCE_BASE_URL in
+        http://*|https://*) ;;
+        *)
+            printf '%s\n' "MAN_CLI_SOURCE_BASE_URL must start with http:// or https://." >&2
+            return 1
+            ;;
+    esac
+
+    request_body=$(jq -cn --arg query "$search_term" --argjson limit 50 \
+        '{query: $query, limit: $limit}') || return 1
+    printf '%s\n' "Searching manga..."
+    if ! search_json=$(curl --silent --show-error --fail --location --max-time 30 \
+        -H 'Content-Type: application/json' --data-binary "$request_body" \
+        "${SOURCE_BASE_URL%/}/auth/search"); then
+        printf 'Could not search %s.\n' "$SOURCE_BASE_URL" >&2
+        return 1
+    fi
+    if ! printf '%s' "$search_json" | jq -e \
+        '(.success == true) and ((.results // []) | type == "array")' >/dev/null; then
+        error_message=$(printf '%s' "$search_json" |
+            jq -r '.message // .error // "The source returned an unsuccessful response."' 2>/dev/null) ||
+            error_message="The source returned an unsuccessful response."
+        printf 'Search failed: %s\n' "$error_message" >&2
+        return 1
+    fi
+
+    manga_rows=$(printf '%s' "$search_json" | jq -r --arg base "${SOURCE_BASE_URL%/}" '
+        [(.results // [])[] |
+          [(.id // ""),
+           (.title // "Untitled"),
+           (.permalink // ($base + "/manga/" + (.slug // "")))]
+          | @tsv] | .[]')
+    if [ -z "$manga_rows" ]; then
+        printf 'No manga found for "%s".\n' "$search_term"
+        return 0
+    fi
+
+    selected_manga=$(printf '%s\n' "$manga_rows" | fzf --delimiter="$(printf '\t')" --with-nth=2 \
+        --prompt="Select manga: " --height=80% --reverse --cycle) || return 0
+    manga_id=$(printf '%s\n' "$selected_manga" | cut -f1)
+    manga_title=$(printf '%s\n' "$selected_manga" | cut -f2)
+    manga_url=$(printf '%s\n' "$selected_manga" | cut -f3)
+    if [ -z "$manga_id" ]; then
+        printf '%s\n' "The selected result has no manga ID." >&2
+        return 1
+    fi
+
+    printf '\nSelected manga: %s\n' "$manga_title"
+    printf 'Series page: %s\n' "$manga_url"
+    printf '%s\n' "Chapter selection and PDF export will be added after an approved direct chapter/image API is available."
 }
 
 is_image() {
@@ -98,7 +169,15 @@ list_pages() {
 
 case ${1-} in
     '')
-        initialize
+        check_dependencies
+        mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$DATA_HOME/man-cli/cache"
+        search_online ""
+        ;;
+    search)
+        check_dependencies
+        mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$DATA_HOME/man-cli/cache"
+        shift
+        search_online "$*"
         ;;
     init)
         if [ "$#" -ne 1 ]; then
@@ -125,7 +204,8 @@ case ${1-} in
         usage
         ;;
     *)
-        usage >&2
-        exit 2
+        check_dependencies
+        mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$DATA_HOME/man-cli/cache"
+        search_online "$*"
         ;;
 esac
