@@ -145,6 +145,9 @@ chapter list. A partial query such as `Blue` shows the matching titles so you
 can select the right series. Search queries must contain at least two
 characters.
 
+After a series is selected, its title is displayed before the chapter list
+opens, for example `Selected manga: One Piece`.
+
 Select a series and a chapter with `fzf`. The chapter's page images are
 extracted and assembled into a temporary PDF, which opens in your PDF viewer.
 The chapter menu remains available in the terminal while the PDF is open.

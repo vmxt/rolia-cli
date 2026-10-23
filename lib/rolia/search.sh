@@ -70,5 +70,6 @@ search_online() {
         return 1
     fi
 
+    message_info "Selected manga: $manga_title"
     select_chapter "$manga_id" "$manga_slug" "$manga_title"
 }
