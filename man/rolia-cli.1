@@ -18,18 +18,18 @@ browse [\fI\,LIBRARY-DIRECTORY\/\fR]
 read \fI\,CHAPTER-DIRECTORY\/\fR
 .SH DESCRIPTION
 .B rolia-cli
-searches manga titles using RoliaScan, lets you select a series and chapter,
-and opens chapter pages as a temporary PDF. Chapters can also be saved as
-permanent PDFs.
+searches manga and novel titles using RoliaScan, lets you select a series and
+chapter, and reads manga pages as a temporary PDF or novel chapters as text.
+Manga chapters can be saved as PDFs and novel chapters as plain-text files.
 .PP
-With no arguments, the program prompts for a manga title. A query searches
+With no arguments, the program prompts for a title. A query searches
 for that title directly. An exact, unambiguous title match is selected
 automatically; otherwise, matching titles are shown in an interactive menu.
 Search queries must contain at least two characters.
 .PP
 During reading, the chapter menu provides Next, Previous, Select chapter,
-Download chapter, and Quit. Temporary files are removed after the PDF viewer
-closes.
+Download chapter, and Quit. Temporary manga PDFs are removed after the PDF
+viewer closes. Novel text is shown in a pager when one is available.
 .PP
 The series selector starts with the search query already entered, allowing
 results to be narrowed and refined immediately. Type in the chapter selector
@@ -115,7 +115,7 @@ variables are not set.
 .SH FILES
 .TP
 .I ~/Downloads/
-Downloaded chapter PDFs.
+Downloaded chapter PDFs and novel text files.
 .TP
 .I ~/.local/share/rolia-cli/library/
 Default library directory.

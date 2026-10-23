@@ -13,6 +13,7 @@ PDF_VIEWER=${ROLIA_CLI_PDF_VIEWER:-${MAN_CLI_PDF_VIEWER:-}}
 . "$ROLIA_ROOT/lib/rolia/search.sh"
 . "$ROLIA_ROOT/lib/rolia/reader.sh"
 . "$ROLIA_ROOT/lib/rolia/pdf.sh"
+. "$ROLIA_ROOT/lib/rolia/text.sh"
 . "$ROLIA_ROOT/lib/rolia/library.sh"
 
 rolia_main() {

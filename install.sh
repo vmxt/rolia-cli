@@ -24,6 +24,7 @@ install -d "$bin_dir" "$module_dir" "$man_dir"
 install -m 755 "$script_dir/rolia-cli" "$bin_dir/rolia-cli"
 install -m 644 "$script_dir/rolia" "$bin_dir/rolia"
 install -m 644 "$script_dir"/lib/rolia/*.sh "$module_dir/"
+install -m 644 "$script_dir"/lib/rolia/*.awk "$module_dir/"
 install -m 644 "$script_dir/man/rolia-cli.1" "$man_dir/rolia-cli.1"
 
 printf 'Installed rolia-cli to %s\n' "$bin_dir"

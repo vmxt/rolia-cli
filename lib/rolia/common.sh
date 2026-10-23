@@ -2,7 +2,7 @@
 usage() {
     cat <<EOF
 Usage:
-  $0                         Prompt for a manga title and select a result
+  $0                         Prompt for a title and select a manga or novel
   $0 <query>                 Search titles directly, e.g. $0 one piece
   $0 search [query]          Search titles interactively or with a query
   $0 init                    Check dependencies and create application folders
@@ -10,8 +10,8 @@ Usage:
   $0 read <chapter-folder>
 
 The default library folder is: $DEFAULT_LIBRARY
-PDF downloads folder: $HOME/Downloads
-Reading extracts the selected chapter pages into a temporary PDF and opens it.
+Downloads folder: $HOME/Downloads
+Manga pages open as temporary PDFs; novel chapters are read as text.
 Reader menu: Next, Previous, Select chapter, Download chapter, Quit.
 Temporary PDFs are removed automatically after the viewer closes.
 The chapter menu stays available while the PDF is open; automatic cleanup requires lsof.

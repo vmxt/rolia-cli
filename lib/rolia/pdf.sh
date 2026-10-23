@@ -45,15 +45,31 @@ export_chapter_pdf() (
     esac
     case $post_id in
         ''|*[!0-9]*)
-            message_error "The selected chapter has an invalid image-content ID: $chapter_id"
+            message_error "The selected chapter has an invalid numeric ID: $chapter_id"
             return 1
             ;;
     esac
     if ! chapter_content=$(curl --silent --fail --location --max-time 30 \
         --get --data-urlencode "chapter_id=$post_id" \
         "${SOURCE_BASE_URL%/}/auth/chapter-content"); then
-        message_error "Could not load page images for chapter $chapter_number."
+        message_error "Could not load chapter content for chapter $chapter_number."
         return 1
+    fi
+    if ! chapter_type=$(printf '%s' "$chapter_content" |
+        jq -r '.chapter_type // "images"'); then
+        message_error "The source returned an invalid response for chapter $chapter_number."
+        return 1
+    fi
+    if [ "$chapter_type" = text ]; then
+        if ! printf '%s' "$chapter_content" | jq -e \
+            '(.success == true) and (.content | type == "string") and (.content | length > 0)' >/dev/null; then
+            message_error "The source did not return text for chapter $chapter_number."
+            return 1
+        fi
+        chapter_html=$(printf '%s' "$chapter_content" | jq -r '.content')
+        chapter_text=$(extract_chapter_text "$chapter_html") || return 1
+        export_chapter_text "$chapter_text" "$manga_title" "$chapter_number" "$pdf_action"
+        return
     fi
     if ! printf '%s' "$chapter_content" | jq -e \
         '(.success == true) and ((.images // []) | type == "array") and ((.images // []) | length > 0)' >/dev/null; then
@@ -130,6 +146,55 @@ EOF
         cleanup_temp_dir
     else
         open_pdf_in_background "$pdf_path" "$temp_dir"
+    fi
+)
+
+export_chapter_text() (
+    chapter_text=$1
+    manga_title=$2
+    chapter_number=$3
+    text_action=$4
+    safe_title=$(printf '%s' "$manga_title" | tr -cs '[:alnum:]_.-' '-')
+    safe_chapter=$(printf '%s' "$chapter_number" | tr -cs '[:alnum:]_.-' '-')
+    [ -n "$safe_title" ] || safe_title=novel
+    [ -n "$safe_chapter" ] || safe_chapter=chapter
+    chapter_text_file_name=$safe_title-Chapter-$safe_chapter.txt
+    chapter_text_with_header=$(printf '%s\nChapter #%s\n\n%s\n' \
+        "$manga_title" "$chapter_number" "$chapter_text")
+
+    if [ "$text_action" = download ]; then
+        mkdir -p "$HOME/Downloads"
+        text_path=$HOME/Downloads/$chapter_text_file_name
+        text_suffix=1
+        while [ -e "$text_path" ]; do
+            text_path=$HOME/Downloads/$safe_title-Chapter-$safe_chapter-$text_suffix.txt
+            text_suffix=$((text_suffix + 1))
+        done
+        if ! printf '%s' "$chapter_text_with_header" > "$text_path"; then
+            message_error "Could not save chapter text to: $text_path"
+            return 1
+        fi
+        message_success "Text saved to: $text_path"
+        return 0
+    fi
+
+    text_temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/rolia-cli.XXXXXX") || {
+        message_error "Could not create a temporary folder for chapter text."
+        return 1
+    }
+    trap 'rm -rf "$text_temp_dir"' 0
+    trap 'exit 1' HUP INT TERM
+    text_path=$text_temp_dir/$chapter_text_file_name
+    if ! printf '%s' "$chapter_text_with_header" > "$text_path"; then
+        message_error "Could not prepare chapter text for reading."
+        return 1
+    fi
+    if command -v less >/dev/null 2>&1; then
+        less "$text_path"
+    elif command -v more >/dev/null 2>&1; then
+        more "$text_path"
+    else
+        cat "$text_path"
     fi
 )
 

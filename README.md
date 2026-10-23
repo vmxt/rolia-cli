@@ -1,13 +1,14 @@
 # rolia-cli
 
-`rolia-cli` is a POSIX shell manga reader. Search RoliaScan, choose a series
-and chapter, then read it as a PDF or save it for later.
+`rolia-cli` is a POSIX shell manga and novel reader. Search RoliaScan, choose
+a series and chapter, then read it or save it for later.
 
 ## Features
 
-- Search and select manga from numbered results.
+- Search and select manga and novels from numbered results.
 - Browse chapters with next, previous, and select controls.
-- Read chapters in a PDF viewer or download permanent PDFs.
+- Read manga chapters in a PDF viewer or download permanent PDFs.
+- Read novel chapters as formatted text or download them as `.txt` files.
 - Clean up temporary reading files automatically.
 
 ## Requirements
@@ -40,16 +41,19 @@ For Windows/WSL, macOS, and other Linux distributions, see
 
 ```sh
 rolia-cli
-rolia-cli "one piece"
+rolia-cli one piece
 ```
 
-Select a manga and chapter from the menus. While reading, use **Next**,
+Select a title and chapter from the menus. While reading, use **Next**,
 **Previous**, **Select chapter**, **Download chapter**, or **Quit**.
+Novel chapters open as text in `less` or `more` when available, and
+**Download chapter** saves them as `.txt` files in `~/Downloads/`.
 
 ## Configuration
 
 By default, data is stored in `~/.local/share/rolia-cli/` and configuration
-in `~/.config/rolia-cli/`. Downloaded chapter PDFs are saved in `~/Downloads/`.
+in `~/.config/rolia-cli/`. Downloaded chapter PDFs and novel text files are
+saved in `~/Downloads/`.
 The XDG environment variables
 `XDG_DATA_HOME` and `XDG_CONFIG_HOME` can change these locations.
 
