@@ -49,7 +49,8 @@ Select a manga and chapter from the menus. While reading, use **Next**,
 ## Configuration
 
 By default, data is stored in `~/.local/share/rolia-cli/` and configuration
-in `~/.config/rolia-cli/`. The XDG environment variables
+in `~/.config/rolia-cli/`. Downloaded chapter PDFs are saved in `~/Downloads/`.
+The XDG environment variables
 `XDG_DATA_HOME` and `XDG_CONFIG_HOME` can change these locations.
 
 - `ROLIA_CLI_SOURCE_BASE_URL` changes the source URL (default:

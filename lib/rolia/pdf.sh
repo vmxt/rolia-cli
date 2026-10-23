@@ -109,11 +109,11 @@ EOF
     [ -n "$safe_chapter" ] || safe_chapter=chapter
     pdf_name=$safe_title-Chapter-$safe_chapter.pdf
     if [ "$pdf_action" = download ]; then
-        mkdir -p "$APP_DATA/downloads"
-        pdf_path=$APP_DATA/downloads/$pdf_name
+        mkdir -p "$HOME/Downloads"
+        pdf_path=$HOME/Downloads/$pdf_name
         pdf_suffix=1
         while [ -e "$pdf_path" ]; do
-            pdf_path=$APP_DATA/downloads/$safe_title-Chapter-$safe_chapter-$pdf_suffix.pdf
+            pdf_path=$HOME/Downloads/$safe_title-Chapter-$safe_chapter-$pdf_suffix.pdf
             pdf_suffix=$((pdf_suffix + 1))
         done
     else

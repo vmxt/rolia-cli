@@ -10,7 +10,7 @@ Usage:
   $0 read <chapter-folder>
 
 The default library folder is: $DEFAULT_LIBRARY
-PDF downloads folder: $APP_DATA/downloads
+PDF downloads folder: $HOME/Downloads
 Reading extracts the selected chapter pages into a temporary PDF and opens it.
 Reader menu: Next, Previous, Select chapter, Download chapter, Quit.
 Temporary PDFs are removed automatically after the viewer closes.
@@ -101,11 +101,11 @@ check_dependencies() {
 
 initialize() {
     check_dependencies
-    mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$APP_DATA/cache"
+    mkdir -p "$DEFAULT_LIBRARY" "$APP_CONFIG" "$APP_DATA/cache"
     printf '\n'
     message_success "Initialized rolia-cli folders:"
     message_info "  Library:   $DEFAULT_LIBRARY"
-    message_info "  Downloads: $APP_DATA/downloads"
+    message_info "  Downloads: $HOME/Downloads"
     message_info "  Config:    $APP_CONFIG"
     printf '\n'
     message_info "Search for a title, select a chapter, and read or download it as a PDF."

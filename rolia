@@ -19,12 +19,12 @@ rolia_main() {
     case ${1-} in
         '')
             check_dependencies
-            mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$APP_DATA/cache"
+            mkdir -p "$DEFAULT_LIBRARY" "$APP_CONFIG" "$APP_DATA/cache"
             search_online ""
             ;;
         search)
             check_dependencies
-            mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$APP_DATA/cache"
+            mkdir -p "$DEFAULT_LIBRARY" "$APP_CONFIG" "$APP_DATA/cache"
             shift
             search_online "$*"
             ;;
@@ -54,7 +54,7 @@ rolia_main() {
             ;;
         *)
             check_dependencies
-            mkdir -p "$DEFAULT_LIBRARY" "$APP_DATA/downloads" "$APP_CONFIG" "$APP_DATA/cache"
+            mkdir -p "$DEFAULT_LIBRARY" "$APP_CONFIG" "$APP_DATA/cache"
             search_online "$*"
             ;;
     esac
