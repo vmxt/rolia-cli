@@ -39,32 +39,33 @@ search_online() {
     fi
 
     manga_rows=$(printf '%s' "$search_json" | jq -r '
-        [(.results // [])[] |
-          [(.id // ""),
-           (.title // "Untitled"),
-           (.slug // "")]
-          | @tsv] | .[]')
+        [(.results // [])[]] | to_entries[] |
+          [((.key + 1) | tostring),
+           (.value.id // ""),
+           (.value.title // "Untitled"),
+           (.value.slug // "")]
+          | @tsv')
     if [ -z "$manga_rows" ]; then
         message_warning "No manga found for \"$search_term\"."
         return 0
     fi
 
     exact_manga_rows=$(printf '%s\n' "$manga_rows" |
-        awk -F '\t' -v query="$search_term" 'tolower($2) == tolower(query)')
+        awk -F '\t' -v query="$search_term" 'tolower($3) == tolower(query)')
     exact_manga_count=$(printf '%s\n' "$exact_manga_rows" |
         awk 'NF { count++ } END { print count + 0 }')
     if [ "$exact_manga_count" -eq 1 ]; then
         selected_manga=$exact_manga_rows
     else
         selected_manga=$(printf '%s\n' "$manga_rows" |
-            fzf --delimiter="$(printf '\t')" --with-nth=2 \
-                --no-height \
+            fzf --delimiter="$(printf '\t')" --with-nth=1,3 \
+                --no-height --no-sort \
                 --query="$search_term" --color=hl:green,hl+:bright-green \
                 --prompt="Select manga: " --reverse --cycle) || return 0
     fi
-    manga_id=$(printf '%s\n' "$selected_manga" | cut -f1)
-    manga_title=$(printf '%s\n' "$selected_manga" | cut -f2)
-    manga_slug=$(printf '%s\n' "$selected_manga" | cut -f3)
+    manga_id=$(printf '%s\n' "$selected_manga" | cut -f2)
+    manga_title=$(printf '%s\n' "$selected_manga" | cut -f3)
+    manga_slug=$(printf '%s\n' "$selected_manga" | cut -f4)
     if [ -z "$manga_id" ]; then
         message_error "The selected result has no manga ID."
         return 1
