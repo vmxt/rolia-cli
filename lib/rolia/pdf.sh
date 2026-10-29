@@ -84,6 +84,14 @@ export_chapter_pdf() (
         message_error "No image URLs were returned for chapter $chapter_number."
         return 1
     fi
+    while IFS= read -r image_url; do
+        if ! is_allowed_image_url "$image_url"; then
+            message_error "Refusing to fetch a page image outside the approved source and image CDN domains: $image_url"
+            return 1
+        fi
+    done <<EOF
+$image_urls
+EOF
 
     temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/rolia-cli.XXXXXX") || {
         message_error "Could not create a temporary folder for chapter pages."
@@ -93,30 +101,44 @@ export_chapter_pdf() (
     trap 'exit 1' HUP INT TERM
     total_pages=$(printf '%s\n' "$image_urls" | awk 'END { print NR }')
     page_number=0
+    completed_pages=0
+    worker_pids=
+    batch_size=0
     print_page_progress "$page_number" "$total_pages" "$progress_action"
     while IFS= read -r image_url; do
-        if ! is_allowed_image_url "$image_url"; then
-            message_error "Refusing to fetch a page image outside the approved source and image CDN domains: $image_url"
-            return 1
-        fi
         page_number=$((page_number + 1))
         image_file=$(printf '%s/page-%04d' "$temp_dir" "$page_number")
-        if ! curl --silent --fail --location --max-time 60 \
-            --referer "$reader_url" --output "$image_file" "$image_url"; then
-            printf '\n' >&2
-            message_error "Failed to download page $page_number."
-            return 1
-        fi
         converted_file=$(printf '%s/converted-%04d.png' "$temp_dir" "$page_number")
-        if ! ffmpeg -nostdin -loglevel error -y -i "$image_file" -frames:v 1 "$converted_file"; then
-            printf '\n' >&2
-            message_error "Could not convert page $page_number to PDF-compatible PNG."
-            return 1
+        download_convert_page "$page_number" "$image_url" "$reader_url" \
+            "$image_file" "$converted_file" &
+        worker_pids="${worker_pids}${worker_pids:+ }$!"
+        batch_size=$((batch_size + 1))
+        if [ "$batch_size" -eq 4 ]; then
+            if ! wait_for_page_workers "$worker_pids"; then
+                worker_pids=
+                printf '\n' >&2
+                message_error "Could not process all pages in chapter $chapter_number."
+                return 1
+            fi
+            completed_pages=$((completed_pages + batch_size))
+            print_page_progress "$completed_pages" "$total_pages" "$progress_action"
+            worker_pids=
+            batch_size=0
         fi
-        print_page_progress "$page_number" "$total_pages" "$progress_action"
     done <<EOF
 $image_urls
 EOF
+    if [ "$batch_size" -gt 0 ]; then
+        if ! wait_for_page_workers "$worker_pids"; then
+        worker_pids=
+        printf '\n' >&2
+        message_error "Could not process all pages in chapter $chapter_number."
+        return 1
+        fi
+        completed_pages=$((completed_pages + batch_size))
+        print_page_progress "$completed_pages" "$total_pages" "$progress_action"
+        worker_pids=
+    fi
     printf '\n'
 
     safe_title=$(printf '%s' "$manga_title" | tr -cs '[:alnum:]_.-' '-')
@@ -148,6 +170,35 @@ EOF
         open_pdf_in_background "$pdf_path" "$temp_dir"
     fi
 )
+
+download_convert_page() (
+    page_number=$1
+    image_url=$2
+    reader_url=$3
+    image_file=$4
+    converted_file=$5
+
+    if ! curl --silent --fail --location --max-time 60 \
+        --referer "$reader_url" --output "$image_file" "$image_url"; then
+        message_error "Failed to download page $page_number."
+        return 1
+    fi
+    if ! ffmpeg -nostdin -loglevel error -y -i "$image_file" -frames:v 1 "$converted_file"; then
+        message_error "Could not convert page $page_number to PDF-compatible PNG."
+        return 1
+    fi
+)
+
+wait_for_page_workers() {
+    worker_pids=$1
+    workers_succeeded=0
+    for worker_pid in $worker_pids; do
+        if ! wait "$worker_pid"; then
+            workers_succeeded=1
+        fi
+    done
+    [ "$workers_succeeded" -eq 0 ]
+}
 
 export_chapter_text() (
     chapter_text=$1
@@ -199,6 +250,10 @@ export_chapter_text() (
 )
 
 cleanup_temp_dir() {
+    if [ -n "${worker_pids:-}" ]; then
+        wait_for_page_workers "$worker_pids" >/dev/null 2>&1 || :
+        worker_pids=
+    fi
     if [ -n "${temp_dir:-}" ] && [ -d "$temp_dir" ]; then
         rm -rf "$temp_dir"
     fi
